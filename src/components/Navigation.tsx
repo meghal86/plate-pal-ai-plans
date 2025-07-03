@@ -1,7 +1,8 @@
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Home, FileText, BarChart3, Users, Settings } from "lucide-react";
-import { useState } from "react";
+import { Home, FileText, BarChart3, Users, Settings, Upload } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 
 interface NavigationProps {
   activeTab: string;
@@ -9,13 +10,26 @@ interface NavigationProps {
 }
 
 const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
+  const location = useLocation();
+  
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: Home },
+    { id: "dashboard", label: "Dashboard", icon: Home, path: "/" },
+    { id: "upload", label: "Upload & Setup", icon: Upload, path: "/upload" },
     { id: "plans", label: "Diet Plans", icon: FileText },
     { id: "tracking", label: "Tracking", icon: BarChart3 },
-    { id: "community", label: "Community", icon: Users },
+    { id: "community", label: "Community", icon: Users, path: "/community" },
     { id: "settings", label: "Settings", icon: Settings },
   ];
+
+  const handleNavigation = (item: any) => {
+    if (item.path) {
+      // For pages with routes, don't call onTabChange
+      return;
+    } else {
+      // For tabs within the main page
+      onTabChange(item.id);
+    }
+  };
 
   return (
     <Card className="fixed bottom-0 left-0 right-0 z-50 mx-4 mb-4 bg-card/95 backdrop-blur-sm border-border/50 shadow-card md:relative md:mx-0 md:mb-0 md:w-64 md:h-screen md:rounded-none md:border-r md:border-b-0">
@@ -31,14 +45,33 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
         
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = item.path 
+            ? location.pathname === item.path 
+            : activeTab === item.id;
           
-          return (
+          const ButtonComponent = item.path ? (
+            <Link to={item.path} key={item.id}>
+              <Button
+                variant={isActive ? "default" : "ghost"}
+                size="sm"
+                className={`flex-col h-auto py-2 px-3 md:flex-row md:justify-start md:h-11 md:px-4 transition-all duration-300 w-full ${
+                  isActive 
+                    ? "bg-primary text-primary-foreground shadow-glow" 
+                    : "hover:bg-secondary hover:text-secondary-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5 md:mr-3" />
+                <span className="text-xs mt-1 md:mt-0 md:text-sm">
+                  {item.label}
+                </span>
+              </Button>
+            </Link>
+          ) : (
             <Button
               key={item.id}
               variant={isActive ? "default" : "ghost"}
               size="sm"
-              onClick={() => onTabChange(item.id)}
+              onClick={() => handleNavigation(item)}
               className={`flex-col h-auto py-2 px-3 md:flex-row md:justify-start md:h-11 md:px-4 transition-all duration-300 ${
                 isActive 
                   ? "bg-primary text-primary-foreground shadow-glow" 
@@ -51,6 +84,8 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
               </span>
             </Button>
           );
+          
+          return ButtonComponent;
         })}
       </div>
     </Card>
