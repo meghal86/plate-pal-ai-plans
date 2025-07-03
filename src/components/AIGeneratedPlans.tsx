@@ -59,14 +59,14 @@ const AIGeneratedPlans = () => {
         ]
       };
 
-      // Save to Supabase
+      // Save to Supabase - properly structure the data for the database
       const { error } = await supabase
         .from('diet_plans')
         .insert({
           title: mockPlan.title,
           description: mockPlan.description,
           user_id: 'temp-user-id', // Will be replaced with actual user ID
-          plan_data: mockPlan,
+          plan_data: mockPlan as any, // Cast to any to satisfy Json type
           is_active: true
         });
 
