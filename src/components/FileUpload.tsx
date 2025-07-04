@@ -41,6 +41,9 @@ const FileUpload = () => {
     setUploading(true);
     
     try {
+      // Create a temporary user ID for demonstration (replace with actual auth later)
+      const tempUserId = crypto.randomUUID();
+      
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
       const filePath = `uploads/${fileName}`;
@@ -64,7 +67,6 @@ const FileUpload = () => {
       console.log('File uploaded successfully, URL:', data.publicUrl);
 
       // Save file info to database
-      const tempUserId = crypto.randomUUID();
       const { error: dbError } = await supabase
         .from('uploaded_files')
         .insert({
@@ -100,6 +102,10 @@ const FileUpload = () => {
     }
   };
 
+  const triggerFileUpload = () => {
+    document.getElementById('file-upload')?.click();
+  };
+
   return (
     <Card className="bg-card border-border/50 shadow-card">
       <CardHeader>
@@ -115,14 +121,17 @@ const FileUpload = () => {
               <Upload className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <Label htmlFor="file-upload" className="cursor-pointer">
-                <span className="text-lg font-medium text-foreground">
-                  Drop files here or click to upload
-                </span>
-                <p className="text-sm text-muted-foreground mt-1">
-                  PDF, PNG, JPG up to 10MB
-                </p>
-              </Label>
+              <Button
+                onClick={triggerFileUpload}
+                disabled={uploading}
+                className="text-lg font-medium"
+                variant="ghost"
+              >
+                Drop files here or click to upload
+              </Button>
+              <p className="text-sm text-muted-foreground mt-1">
+                PDF, PNG, JPG up to 10MB
+              </p>
               <Input
                 id="file-upload"
                 type="file"
