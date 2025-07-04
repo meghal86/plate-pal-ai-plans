@@ -62,14 +62,14 @@ const AIGeneratedPlans = () => {
         ]
       };
 
-      // Save to the new nutrition_plans table
+      // Save to the nutrition_plans table with proper type casting
       const { error } = await supabase
         .from('nutrition_plans')
         .insert({
           title: mockPlan.title,
           description: mockPlan.description,
           user_id: tempUserId,
-          plan_content: mockPlan,
+          plan_content: mockPlan as any, // Cast to any for JSON compatibility
           duration: mockPlan.duration,
           calories: mockPlan.calories,
           is_active: true
