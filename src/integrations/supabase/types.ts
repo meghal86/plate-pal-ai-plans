@@ -9,56 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      diet_plans: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          family_id: string | null
-          file_url: string | null
-          id: string
-          is_active: boolean | null
-          parsed_content: Json | null
-          plan_data: Json | null
-          title: string
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          family_id?: string | null
-          file_url?: string | null
-          id?: string
-          is_active?: boolean | null
-          parsed_content?: Json | null
-          plan_data?: Json | null
-          title: string
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          family_id?: string | null
-          file_url?: string | null
-          id?: string
-          is_active?: boolean | null
-          parsed_content?: Json | null
-          plan_data?: Json | null
-          title?: string
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "diet_plans_family_id_fkey"
-            columns: ["family_id"]
-            isOneToOne: false
-            referencedRelation: "families"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       families: {
         Row: {
           created_at: string | null
@@ -160,6 +110,45 @@ export type Database = {
           scheduled_time?: string | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      nutrition_plans: {
+        Row: {
+          calories: string | null
+          created_at: string | null
+          description: string | null
+          duration: string | null
+          id: string
+          is_active: boolean | null
+          plan_content: Json | null
+          title: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          calories?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration?: string | null
+          id?: string
+          is_active?: boolean | null
+          plan_content?: Json | null
+          title: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          calories?: string | null
+          created_at?: string | null
+          description?: string | null
+          duration?: string | null
+          id?: string
+          is_active?: boolean | null
+          plan_content?: Json | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -284,30 +273,75 @@ export type Database = {
           },
         ]
       }
-      user_profiles: {
+      uploaded_files: {
         Row: {
           created_at: string | null
-          email: string | null
-          full_name: string | null
+          file_type: string | null
+          file_url: string
+          filename: string
           id: string
-          updated_at: string | null
           user_id: string | null
         }
         Insert: {
           created_at?: string | null
-          email?: string | null
-          full_name?: string | null
+          file_type?: string | null
+          file_url: string
+          filename: string
           id?: string
-          updated_at?: string | null
           user_id?: string | null
         }
         Update: {
           created_at?: string | null
+          file_type?: string | null
+          file_url?: string
+          filename?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_profiles: {
+        Row: {
+          activity_level: string | null
+          age: number | null
+          created_at: string | null
+          dietary_restrictions: string | null
+          email: string | null
+          full_name: string | null
+          health_goals: string | null
+          height: number | null
+          id: string
+          updated_at: string | null
+          user_id: string | null
+          weight: number | null
+        }
+        Insert: {
+          activity_level?: string | null
+          age?: number | null
+          created_at?: string | null
+          dietary_restrictions?: string | null
           email?: string | null
           full_name?: string | null
+          health_goals?: string | null
+          height?: number | null
           id?: string
           updated_at?: string | null
           user_id?: string | null
+          weight?: number | null
+        }
+        Update: {
+          activity_level?: string | null
+          age?: number | null
+          created_at?: string | null
+          dietary_restrictions?: string | null
+          email?: string | null
+          full_name?: string | null
+          health_goals?: string | null
+          height?: number | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string | null
+          weight?: number | null
         }
         Relationships: []
       }

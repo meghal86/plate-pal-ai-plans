@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const FileUpload = () => {
   const [uploading, setUploading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{url: string, name: string}>>([]);
   const { toast } = useToast();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,37 +28,71 @@ const FileUpload = () => {
       return;
     }
 
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload files smaller than 10MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setUploading(true);
     
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `diet-plans/${fileName}`;
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `uploads/${fileName}`;
+
+      console.log('Uploading file:', fileName, 'to bucket: nutrition-files');
 
       const { error: uploadError } = await supabase.storage
-        .from('diet-plans')
+        .from('nutrition-files')
         .upload(filePath, file);
 
       if (uploadError) {
+        console.error('Upload error:', uploadError);
         throw uploadError;
       }
 
       // Get public URL
       const { data } = supabase.storage
-        .from('diet-plans')
+        .from('nutrition-files')
         .getPublicUrl(filePath);
 
-      setUploadedFiles(prev => [...prev, data.publicUrl]);
+      console.log('File uploaded successfully, URL:', data.publicUrl);
+
+      // Save file info to database
+      const tempUserId = crypto.randomUUID();
+      const { error: dbError } = await supabase
+        .from('uploaded_files')
+        .insert({
+          user_id: tempUserId,
+          filename: file.name,
+          file_url: data.publicUrl,
+          file_type: file.type
+        });
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        // Don't throw here, file is already uploaded
+      }
+
+      setUploadedFiles(prev => [...prev, { url: data.publicUrl, name: file.name }]);
       
       toast({
         title: "File uploaded successfully",
-        description: "Your diet plan file has been uploaded",
+        description: "Your diet plan file has been uploaded and saved",
       });
+
+      // Reset the input
+      event.target.value = '';
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Upload process error:', error);
       toast({
         title: "Upload failed",
-        description: "Failed to upload file. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to upload file. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -112,12 +146,12 @@ const FileUpload = () => {
             <h4 className="font-medium text-foreground">Uploaded Files:</h4>
             {uploadedFiles.map((file, index) => (
               <div key={index} className="flex items-center space-x-2 p-2 bg-secondary rounded">
-                {file.includes('.pdf') ? (
+                {file.name.toLowerCase().includes('.pdf') ? (
                   <FileText className="h-4 w-4 text-red-500" />
                 ) : (
                   <Image className="h-4 w-4 text-blue-500" />
                 )}
-                <span className="text-sm truncate">{file.split('/').pop()}</span>
+                <span className="text-sm truncate">{file.name}</span>
               </div>
             ))}
           </div>

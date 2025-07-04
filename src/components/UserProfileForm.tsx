@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { User, Target, Scale } from "lucide-react";
+import { User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,9 +13,11 @@ interface UserProfile {
   age: string;
   weight: string;
   height: string;
-  dietaryRestrictions: string;
-  healthGoals: string;
-  activityLevel: string;
+  dietary_restrictions: string;
+  health_goals: string;
+  activity_level: string;
+  full_name: string;
+  email: string;
 }
 
 const UserProfileForm = () => {
@@ -23,9 +25,11 @@ const UserProfileForm = () => {
     age: "",
     weight: "",
     height: "",
-    dietaryRestrictions: "",
-    healthGoals: "",
-    activityLevel: "moderate"
+    dietary_restrictions: "",
+    health_goals: "",
+    activity_level: "moderate",
+    full_name: "",
+    email: ""
   });
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -35,26 +39,37 @@ const UserProfileForm = () => {
     setSaving(true);
 
     try {
+      // Create a temporary user ID for demonstration (replace with actual auth later)
+      const tempUserId = crypto.randomUUID();
+      
       const { error } = await supabase
         .from('user_profiles')
-        .upsert({
-          user_id: 'temp-user-id', // This will be replaced with actual user ID after auth
-          full_name: `User Profile`,
-          email: 'temp@example.com', // This will be replaced with actual email
-          ...profile
+        .insert({
+          user_id: tempUserId,
+          full_name: profile.full_name,
+          email: profile.email,
+          age: profile.age ? parseInt(profile.age) : null,
+          weight: profile.weight ? parseFloat(profile.weight) : null,
+          height: profile.height ? parseFloat(profile.height) : null,
+          activity_level: profile.activity_level,
+          health_goals: profile.health_goals,
+          dietary_restrictions: profile.dietary_restrictions
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Profile save error:', error);
+        throw error;
+      }
 
       toast({
         title: "Profile saved successfully",
-        description: "Your profile information has been updated",
+        description: "Your profile information has been saved to the database",
       });
     } catch (error) {
       console.error('Save error:', error);
       toast({
         title: "Save failed",
-        description: "Failed to save profile. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to save profile. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -76,6 +91,31 @@ const UserProfileForm = () => {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="full_name">Full Name</Label>
+              <Input
+                id="full_name"
+                type="text"
+                placeholder="John Doe"
+                value={profile.full_name}
+                onChange={(e) => handleChange('full_name', e.target.value)}
+                className="bg-background"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="john@example.com"
+                value={profile.email}
+                onChange={(e) => handleChange('email', e.target.value)}
+                className="bg-background"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="age">Age</Label>
@@ -113,11 +153,11 @@ const UserProfileForm = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="activityLevel">Activity Level</Label>
+            <Label htmlFor="activity_level">Activity Level</Label>
             <select
-              id="activityLevel"
-              value={profile.activityLevel}
-              onChange={(e) => handleChange('activityLevel', e.target.value)}
+              id="activity_level"
+              value={profile.activity_level}
+              onChange={(e) => handleChange('activity_level', e.target.value)}
               className="w-full p-2 border border-border rounded-md bg-background"
             >
               <option value="sedentary">Sedentary (little/no exercise)</option>
@@ -129,23 +169,23 @@ const UserProfileForm = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="healthGoals">Health Goals</Label>
+            <Label htmlFor="health_goals">Health Goals</Label>
             <Textarea
-              id="healthGoals"
+              id="health_goals"
               placeholder="e.g., Weight loss, muscle gain, better energy..."
-              value={profile.healthGoals}
-              onChange={(e) => handleChange('healthGoals', e.target.value)}
+              value={profile.health_goals}
+              onChange={(e) => handleChange('health_goals', e.target.value)}
               className="bg-background min-h-[80px]"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="dietaryRestrictions">Dietary Restrictions & Preferences</Label>
+            <Label htmlFor="dietary_restrictions">Dietary Restrictions & Preferences</Label>
             <Textarea
-              id="dietaryRestrictions"
+              id="dietary_restrictions"
               placeholder="e.g., Vegetarian, gluten-free, allergies, food preferences..."
-              value={profile.dietaryRestrictions}
-              onChange={(e) => handleChange('dietaryRestrictions', e.target.value)}
+              value={profile.dietary_restrictions}
+              onChange={(e) => handleChange('dietary_restrictions', e.target.value)}
               className="bg-background min-h-[80px]"
             />
           </div>

@@ -33,6 +33,9 @@ const AIGeneratedPlans = () => {
     setGenerating(true);
     
     try {
+      // Create a temporary user ID for demonstration (replace with actual auth later)
+      const tempUserId = crypto.randomUUID();
+      
       // Mock AI-generated plan for now (will be replaced with actual OpenAI integration)
       const mockPlan: GeneratedPlan = {
         id: `plan_${Date.now()}`,
@@ -59,24 +62,29 @@ const AIGeneratedPlans = () => {
         ]
       };
 
-      // Save to Supabase - properly structure the data for the database
+      // Save to the new nutrition_plans table
       const { error } = await supabase
-        .from('diet_plans')
+        .from('nutrition_plans')
         .insert({
           title: mockPlan.title,
           description: mockPlan.description,
-          user_id: 'temp-user-id', // Will be replaced with actual user ID
-          plan_data: mockPlan as any, // Cast to any to satisfy Json type
+          user_id: tempUserId,
+          plan_content: mockPlan,
+          duration: mockPlan.duration,
+          calories: mockPlan.calories,
           is_active: true
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       setGeneratedPlans(prev => [...prev, mockPlan]);
       
       toast({
         title: "AI Plan Generated!",
-        description: "Your personalized diet plan has been created",
+        description: "Your personalized diet plan has been created successfully",
       });
     } catch (error) {
       console.error('Generation error:', error);
