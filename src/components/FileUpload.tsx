@@ -1,9 +1,8 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Upload, FileText, Image, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +11,7 @@ const FileUpload = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{url: string, name: string}>>([]);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -89,7 +89,9 @@ const FileUpload = () => {
       });
 
       // Reset the input
-      event.target.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (error) {
       console.error('Upload process error:', error);
       toast({
@@ -103,7 +105,8 @@ const FileUpload = () => {
   };
 
   const triggerFileUpload = () => {
-    document.getElementById('file-upload')?.click();
+    console.log('Upload button clicked');
+    fileInputRef.current?.click();
   };
 
   return (
@@ -133,7 +136,7 @@ const FileUpload = () => {
                 PDF, PNG, JPG up to 10MB
               </p>
               <Input
-                id="file-upload"
+                ref={fileInputRef}
                 type="file"
                 accept=".pdf,.png,.jpg,.jpeg"
                 onChange={handleFileUpload}
