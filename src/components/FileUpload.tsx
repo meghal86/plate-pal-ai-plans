@@ -3,7 +3,7 @@ import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, FileText, Image, Loader2, AlertCircle } from "lucide-react";
+import { Upload, FileText, Image, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,17 +16,6 @@ const FileUpload = () => {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    // Check if user is authenticated
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to upload files. For now, this is a demo feature.",
-        variant: "destructive"
-      });
-      return;
-    }
 
     // Check file type
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
@@ -52,9 +41,12 @@ const FileUpload = () => {
     setUploading(true);
     
     try {
+      // Create a temporary user ID for demonstration
+      const tempUserId = crypto.randomUUID();
+      
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = `demo/${fileName}`;
 
       console.log('Uploading file:', fileName, 'to bucket: nutrition-files');
 
@@ -78,7 +70,7 @@ const FileUpload = () => {
       const { error: dbError } = await supabase
         .from('uploaded_files')
         .insert({
-          user_id: user.id,
+          user_id: tempUserId,
           filename: file.name,
           file_url: data.publicUrl,
           file_type: file.type
@@ -159,13 +151,6 @@ const FileUpload = () => {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="flex items-center space-x-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <AlertCircle className="h-4 w-4 text-yellow-600" />
-          <p className="text-sm text-yellow-800">
-            Note: File upload requires authentication. This is currently a demo feature.
-          </p>
         </div>
 
         {uploadedFiles.length > 0 && (
