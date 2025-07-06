@@ -5,11 +5,12 @@ import { ArrowLeft } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 import UserProfileForm from "@/components/UserProfileForm";
 import AIGeneratedPlans from "@/components/AIGeneratedPlans";
+import PlanCalendar from "@/components/PlanCalendar";
 
 const Upload = () => {
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <div className="max-w-4xl mx-auto p-6 space-y-8">
+      <div className="max-w-7xl mx-auto p-6 space-y-8">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">
@@ -35,6 +36,11 @@ const Upload = () => {
           <div>
             <AIGeneratedPlans />
           </div>
+        </div>
+
+        {/* Plan Calendar Section */}
+        <div className="mt-8">
+          <PlanCalendar />
         </div>
       </div>
     </div>
