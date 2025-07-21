@@ -25,14 +25,11 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
   ];
 
   const handleNavigation = (item: any) => {
-    console.log('Navigation clicked:', item.id, 'has path:', item.path, 'current location:', location.pathname);
     if (item.path) {
       // For pages with routes, don't call onTabChange
-      console.log('Using Link navigation for:', item.path);
       return;
     } else {
       // For tabs within the main page
-      console.log('Using tab navigation for:', item.id);
       onTabChange(item.id);
     }
   };

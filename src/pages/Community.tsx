@@ -1,17 +1,22 @@
 
-import { useState } from "react";
-import Navigation from "@/components/Navigation";
+import { ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import CommunitySharing from "@/components/CommunitySharing";
 
 const Community = () => {
-  const [activeTab, setActiveTab] = useState("community");
-
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <div className="flex flex-col md:flex-row">
-        <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
-        <main className="flex-1 p-6 md:ml-0">
-          <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="mb-6">
+          <Link to="/">
+            <Button variant="ghost" size="sm" className="mb-4">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
+        </div>
+        
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Community
@@ -21,9 +26,7 @@ const Community = () => {
           </p>
         </div>
         
-            <CommunitySharing />
-          </div>
-        </main>
+        <CommunitySharing />
       </div>
     </div>
   );
