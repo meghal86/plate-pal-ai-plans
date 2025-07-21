@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 interface UserProfile {
   age: string;
   weight: string;
+  weight_unit: 'kg' | 'lbs';
   height: string;
   dietary_restrictions: string;
   health_goals: string;
@@ -20,10 +21,20 @@ interface UserProfile {
   email: string;
 }
 
+const getDefaultWeightUnit = () => {
+  const locale = navigator.language || navigator.languages[0] || '';
+  if (locale.startsWith('en-US')) return 'lbs';
+  if (locale.startsWith('en-IN') || locale.startsWith('hi-IN')) return 'kg';
+  // Add more country checks as needed
+  // Default: kg
+  return 'kg';
+};
+
 const UserProfileForm = () => {
   const [profile, setProfile] = useState<UserProfile>({
     age: "",
     weight: "",
+    weight_unit: getDefaultWeightUnit(),
     height: "",
     dietary_restrictions: "",
     health_goals: "",
@@ -39,13 +50,14 @@ const UserProfileForm = () => {
     setSaving(true);
 
     try {
+      // Debug log for weight_unit
+      console.log("weight_unit being sent:", profile.weight_unit);
       // Create a temporary user ID for demonstration (replace with actual auth later)
       const tempUserId = crypto.randomUUID();
       
       const { error } = await supabase
         .from('user_profiles')
         .insert({
-          user_id: tempUserId,
           full_name: profile.full_name,
           email: profile.email,
           age: profile.age ? parseInt(profile.age) : null,
@@ -53,7 +65,8 @@ const UserProfileForm = () => {
           height: profile.height ? parseFloat(profile.height) : null,
           activity_level: profile.activity_level,
           health_goals: profile.health_goals,
-          dietary_restrictions: profile.dietary_restrictions
+          dietary_restrictions: profile.dietary_restrictions,
+          weight_unit: profile.weight_unit // Use actual value from form
         });
 
       if (error) {
@@ -129,15 +142,27 @@ const UserProfileForm = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="weight">Weight (kg)</Label>
-              <Input
-                id="weight"
-                type="number"
-                placeholder="70"
-                value={profile.weight}
-                onChange={(e) => handleChange('weight', e.target.value)}
-                className="bg-background"
-              />
+              <Label htmlFor="weight">Weight ({profile.weight_unit})</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="weight"
+                  type="number"
+                  placeholder={profile.weight_unit === 'kg' ? '70' : '154'}
+                  value={profile.weight}
+                  onChange={(e) => handleChange('weight', e.target.value)}
+                  className="bg-background"
+                />
+                <select
+                  id="weight_unit"
+                  value={profile.weight_unit}
+                  onChange={e => handleChange('weight_unit', e.target.value)}
+                  className="border rounded-md px-2 bg-background"
+                  required
+                >
+                  <option value="kg">kg</option>
+                  <option value="lbs">lbs</option>
+                </select>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="height">Height (cm)</Label>
