@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Home, FileText, BarChart3, Users, Settings, Upload } from "lucide-react";
+import { Home, FileText, BarChart3, Users, Settings, Upload, Activity, FileHeart, Trophy } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 interface NavigationProps {
@@ -17,6 +17,9 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
     { id: "upload", label: "Upload & Setup", icon: Upload, path: "/upload" },
     { id: "plans", label: "Diet Plans", icon: FileText },
     { id: "tracking", label: "Tracking", icon: BarChart3 },
+    { id: "health-metrics", label: "Health Metrics", icon: Activity },
+    { id: "lab-reports", label: "Lab Reports", icon: FileHeart },
+    { id: "rewards", label: "Rewards", icon: Trophy },
     { id: "community", label: "Community", icon: Users, path: "/community" },
     { id: "settings", label: "Settings", icon: Settings },
   ];

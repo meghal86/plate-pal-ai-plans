@@ -4,6 +4,9 @@ import Dashboard from "@/components/Dashboard";
 import DietPlans from "@/components/DietPlans";
 import Tracking from "@/components/Tracking";
 import Community from "@/components/Community";
+import HealthMetrics from "@/components/HealthMetrics";
+import LabReports from "@/components/LabReports";
+import Rewards from "@/components/Rewards";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -16,6 +19,12 @@ const Index = () => {
         return <DietPlans />;
       case "tracking":
         return <Tracking />;
+      case "health-metrics":
+        return <HealthMetrics />;
+      case "lab-reports":
+        return <LabReports />;
+      case "rewards":
+        return <Rewards />;
       case "community":
         return <Community />;
       case "settings":
