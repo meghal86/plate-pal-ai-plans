@@ -17,10 +17,19 @@ interface PlanEvent {
   calories?: number;
 }
 
+interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  uploadDate: string;
+  content?: string;
+}
+
 const PlanCalendar = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [planEvents, setPlanEvents] = useState<PlanEvent[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [parsing, setParsing] = useState(false);
   const { toast } = useToast();
@@ -180,13 +189,13 @@ const PlanCalendar = () => {
               {uploadedFiles.map(file => (
                 <div key={file.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
                   <div>
-                    <p className="font-medium">{file.filename}</p>
+                    <p className="font-medium">{file.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      Uploaded {new Date(file.created_at).toLocaleDateString()}
+                      Uploaded {new Date(file.uploadDate).toLocaleDateString()}
                     </p>
                   </div>
                   <Button
-                    onClick={() => parseFileWithAI(file.file_url, file.filename)}
+                    onClick={() => parseFileWithAI(file.content || '', file.name)}
                     disabled={parsing}
                     size="sm"
                   >

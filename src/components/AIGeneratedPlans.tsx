@@ -69,7 +69,7 @@ const AIGeneratedPlans = () => {
           title: mockPlan.title,
           description: mockPlan.description,
           user_id: tempUserId,
-          plan_content: mockPlan as any, // Cast to any for JSON compatibility
+          plan_content: mockPlan as Record<string, unknown>, // Use proper type instead of any
           duration: mockPlan.duration,
           calories: mockPlan.calories,
           is_active: true

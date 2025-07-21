@@ -14,8 +14,17 @@ import {
   Download
 } from "lucide-react";
 
+interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  uploadDate: string;
+  status?: 'uploaded' | 'processing' | 'completed' | 'error';
+}
+
 const LabReports = () => {
-  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   // Mock lab reports data
   const labReports = [

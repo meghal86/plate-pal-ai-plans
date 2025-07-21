@@ -9,10 +9,17 @@ interface NavigationProps {
   onTabChange: (tab: string) => void;
 }
 
+interface NavItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  path?: string;
+}
+
 const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
   const location = useLocation();
   
-  const navItems = [
+  const navItems: NavItem[] = [
     { id: "dashboard", label: "Dashboard", icon: Home, path: "/" },
     { id: "upload", label: "Upload & Setup", icon: Upload, path: "/upload" },
     { id: "plans", label: "Diet Plans", icon: FileText },
@@ -24,7 +31,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
-  const handleNavigation = (item: any) => {
+  const handleNavigation = (item: NavItem) => {
     if (item.path) {
       // For pages with routes, don't call onTabChange
       return;
