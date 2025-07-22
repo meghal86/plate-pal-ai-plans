@@ -14,14 +14,14 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
   
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: Home, path: "/" },
-    { id: "upload", label: "Upload & Setup", icon: Upload, path: "/upload" },
+    { id: "upload", label: "Upload Plans", icon: Upload, path: "/upload" },
+    { id: "profile", label: "Profile", icon: Settings, path: "/profile" },
     { id: "plans", label: "Diet Plans", icon: FileText },
     { id: "tracking", label: "Tracking", icon: BarChart3 },
     { id: "health-metrics", label: "Health Metrics", icon: Activity },
     { id: "lab-reports", label: "Lab Reports", icon: FileHeart },
     { id: "rewards", label: "Rewards", icon: Trophy },
     { id: "community", label: "Community", icon: Users, path: "/community" },
-    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   const handleNavigation = (item: any) => {

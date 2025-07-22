@@ -1,22 +1,19 @@
-
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import FileUpload from "@/components/FileUpload";
-import AIGeneratedPlans from "@/components/AIGeneratedPlans";
-import PlanCalendar from "@/components/PlanCalendar";
+import UserProfileForm from "@/components/UserProfileForm";
 
-const Upload = () => {
+const Profile = () => {
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
+      <div className="max-w-4xl mx-auto p-6 space-y-8">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">
-              Upload Diet Plans
+              Personal Information
             </h1>
             <p className="text-muted-foreground">
-              Upload your diet plans and let AI create personalized recommendations
+              Manage your profile and family member settings
             </p>
           </div>
           <Link to="/">
@@ -27,22 +24,10 @@ const Upload = () => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div>
-            <FileUpload />
-          </div>
-          <div>
-            <AIGeneratedPlans />
-          </div>
-        </div>
-
-        {/* Plan Calendar Section */}
-        <div className="mt-8">
-          <PlanCalendar />
-        </div>
+        <UserProfileForm />
       </div>
     </div>
   );
 };
 
-export default Upload;
+export default Profile;
