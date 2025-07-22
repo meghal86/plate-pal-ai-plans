@@ -16,6 +16,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
     { id: "dashboard", label: "Dashboard", icon: Home, path: "/" },
     { id: "upload", label: "Upload Plans", icon: Upload, path: "/upload" },
     { id: "profile", label: "Profile", icon: Settings, path: "/profile" },
+    { id: "family", label: "Family", icon: Users, path: "/family" },
     { id: "plans", label: "Diet Plans", icon: FileText },
     { id: "tracking", label: "Tracking", icon: BarChart3 },
     { id: "health-metrics", label: "Health Metrics", icon: Activity },
