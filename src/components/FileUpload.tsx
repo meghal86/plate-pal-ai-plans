@@ -1,5 +1,5 @@
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,35 @@ const FileUpload = () => {
   const [textContent, setTextContent] = useState("");
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load uploaded files on component mount
+  useEffect(() => {
+    loadUploadedFiles();
+  }, []);
+
+  const loadUploadedFiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('uploaded_files')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading files:', error);
+        return;
+      }
+
+      if (data) {
+        const files = data.map(file => ({
+          url: file.file_url,
+          name: file.filename
+        }));
+        setUploadedFiles(files);
+      }
+    } catch (error) {
+      console.error('Error loading uploaded files:', error);
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -36,8 +65,8 @@ const FileUpload = () => {
     setUploading(true);
     
     try {
-      // Create a temporary user ID for demonstration
-      const tempUserId = crypto.randomUUID();
+      // Use null for user_id since we don't have authentication yet
+      const userId = null;
       
       const fileExt = file.name.split('.').pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
@@ -65,7 +94,7 @@ const FileUpload = () => {
       const { error: dbError } = await supabase
         .from('uploaded_files')
         .insert({
-          user_id: tempUserId,
+          user_id: userId,
           filename: file.name,
           file_url: data.publicUrl,
           file_type: file.type
@@ -76,7 +105,8 @@ const FileUpload = () => {
         // Don't throw here, file is already uploaded
       }
 
-      setUploadedFiles(prev => [...prev, { url: data.publicUrl, name: file.name }]);
+      // Reload the files list to show the new upload
+      await loadUploadedFiles();
       
       toast({
         title: "File uploaded successfully",
@@ -117,8 +147,8 @@ const FileUpload = () => {
     setSubmittingText(true);
     
     try {
-      // Create a temporary user ID for demonstration
-      const tempUserId = crypto.randomUUID();
+      // Use null for user_id since we don't have authentication yet  
+      const userId = null;
       
       // Create a text file from the content
       const textBlob = new Blob([textContent], { type: 'text/plain' });
@@ -148,7 +178,7 @@ const FileUpload = () => {
       const { error: dbError } = await supabase
         .from('uploaded_files')
         .insert({
-          user_id: tempUserId,
+          user_id: userId,
           filename: fileName,
           file_url: data.publicUrl,
           file_type: 'text/plain'
@@ -159,7 +189,8 @@ const FileUpload = () => {
         // Don't throw here, file is already uploaded
       }
 
-      setUploadedFiles(prev => [...prev, { url: data.publicUrl, name: fileName }]);
+      // Reload the files list to show the new upload
+      await loadUploadedFiles();
       
       toast({
         title: "Text submitted successfully",
