@@ -18,7 +18,7 @@ interface PlanEvent {
 }
 
 const PlanCalendar = () => {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date()); // Set default to today
   const [planEvents, setPlanEvents] = useState<PlanEvent[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,7 +57,14 @@ const PlanCalendar = () => {
       if (error) throw error;
 
       const parsedEvents = data.events || [];
-      setPlanEvents(prev => [...prev, ...parsedEvents]);
+      console.log('Parsed events received:', parsedEvents);
+      console.log('Number of events:', parsedEvents.length);
+      
+      setPlanEvents(prev => {
+        const newEvents = [...prev, ...parsedEvents];
+        console.log('All events after adding:', newEvents);
+        return newEvents;
+      });
       
       toast({
         title: "Plan parsed successfully",
@@ -103,6 +110,11 @@ const PlanCalendar = () => {
   };
 
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
+  
+  // Debug logging
+  console.log('Selected date:', selectedDate);
+  console.log('Total plan events:', planEvents.length);
+  console.log('Selected date events:', selectedDateEvents.length);
 
   return (
     <div className="space-y-6">
