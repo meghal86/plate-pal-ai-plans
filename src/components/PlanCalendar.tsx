@@ -77,14 +77,19 @@ const PlanCalendar = () => {
 
   // Get events for selected date
   const getEventsForDate = (date: Date) => {
-    return planEvents.filter(event => 
-      event.date.toDateString() === date.toDateString()
-    );
+    return planEvents.filter(event => {
+      // Ensure event.date is a Date object
+      const eventDate = event.date instanceof Date ? event.date : new Date(event.date);
+      return eventDate.toDateString() === date.toDateString();
+    });
   };
 
   // Get dates that have events
   const getDatesWithEvents = () => {
-    return planEvents.map(event => event.date);
+    return planEvents.map(event => {
+      // Ensure event.date is a Date object
+      return event.date instanceof Date ? event.date : new Date(event.date);
+    });
   };
 
   const getMealTypeColor = (mealType: string) => {
