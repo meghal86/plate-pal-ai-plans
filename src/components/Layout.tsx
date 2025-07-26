@@ -161,6 +161,9 @@ const Layout = ({ children, showSidebar = true }: LayoutProps) => {
 
       {/* Main Content Area */}
       <main className={`${showSidebar ? 'lg:ml-64' : ''} min-h-screen bg-gradient-to-br from-orange-50 via-yellow-50 to-green-50 relative overflow-hidden`}>
+        {/* Header */}
+        <Header title="NourishPlate" showUserInfo={true} />
+        
         {/* Ensure content doesn't get hidden behind sidebar */}
         <div className="relative w-full h-full">
           {/* Background Elements */}
