@@ -1,17 +1,16 @@
-
-import DietPlans from "@/components/DietPlans";
 import Layout from "@/components/Layout";
+import HealthMetrics from "@/components/HealthMetrics";
 
-const Upload = () => {
+const HealthMetricsPage = () => {
   return (
     <Layout showSidebar={true}>
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
-          <DietPlans />
+          <HealthMetrics />
         </div>
       </div>
     </Layout>
   );
 };
 
-export default Upload;
+export default HealthMetricsPage; 

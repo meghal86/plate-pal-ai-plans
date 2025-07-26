@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Users, Plus, Share2, ShoppingCart, Bell, UserPlus, Copy } from "lucide-react";
+import { Users, Plus, Share2, ShoppingCart, Bell, UserPlus, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import SharedShoppingList from "@/components/SharedShoppingList";
 import CookAssignment from "@/components/CookAssignment";
+import Layout from "@/components/Layout";
 
 interface Family {
   id: string;
@@ -264,24 +265,12 @@ const Family = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <Layout showSidebar={true}>
       <div className="max-w-6xl mx-auto p-6 space-y-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2 flex items-center">
-              <Users className="h-8 w-8 mr-3" />
-              Family Sync Hub
-            </h1>
-            <p className="text-muted-foreground">
-              Manage your family members, shared shopping lists, and meal assignments
-            </p>
-          </div>
-          <Link to="/">
-            <Button variant="outline" className="flex items-center">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
+        <div className="text-center mb-8">
+          <p className="text-gray-600">
+            Manage your family members, shared shopping lists, and meal assignments
+          </p>
         </div>
 
         {!currentFamily ? (
@@ -469,7 +458,7 @@ const Family = () => {
           </div>
         )}
       </div>
-    </div>
+    </Layout>
   );
 };
 

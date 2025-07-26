@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Navigation from "@/components/Navigation";
+import Layout from "@/components/Layout";
 import Dashboard from "@/components/Dashboard";
 import DietPlans from "@/components/DietPlans";
 import Tracking from "@/components/Tracking";
@@ -40,16 +40,13 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
-      <div className="flex flex-col md:flex-row">
-        <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
-        <main className="flex-1 p-6 md:ml-0">
-          <div className="max-w-7xl mx-auto animate-fade-in">
-            {renderContent()}
-          </div>
-        </main>
+    <Layout showSidebar={true}>
+      <div className="p-8">
+        <div className="max-w-7xl mx-auto">
+          {renderContent()}
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 };
 

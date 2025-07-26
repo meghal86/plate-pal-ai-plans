@@ -1,17 +1,16 @@
-
-import DietPlans from "@/components/DietPlans";
 import Layout from "@/components/Layout";
+import Tracking from "@/components/Tracking";
 
-const Upload = () => {
+const TrackingPage = () => {
   return (
     <Layout showSidebar={true}>
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
-          <DietPlans />
+          <Tracking />
         </div>
       </div>
     </Layout>
   );
 };
 
-export default Upload;
+export default TrackingPage; 

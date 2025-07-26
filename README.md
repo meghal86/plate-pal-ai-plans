@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# NourishPlate - AI-Powered Nutrition Platform
 
 ## Project info
 

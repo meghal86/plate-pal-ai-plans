@@ -1,17 +1,16 @@
-
-import DietPlans from "@/components/DietPlans";
 import Layout from "@/components/Layout";
+import Rewards from "@/components/Rewards";
 
-const Upload = () => {
+const RewardsPage = () => {
   return (
     <Layout showSidebar={true}>
       <div className="p-8">
         <div className="max-w-7xl mx-auto">
-          <DietPlans />
+          <Rewards />
         </div>
       </div>
     </Layout>
   );
 };
 
-export default Upload;
+export default RewardsPage; 

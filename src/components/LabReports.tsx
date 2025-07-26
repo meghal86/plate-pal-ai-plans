@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import FileUpload from "@/components/FileUpload";
+import { Separator } from "@/components/ui/separator";
+import LabReportUpload from "@/components/LabReportUpload";
 import { 
   FileText, 
   Upload, 
@@ -11,7 +12,11 @@ import {
   CheckCircle, 
   XCircle,
   Calendar,
-  Download
+  Download,
+  AlertCircle,
+  TrendingUp,
+  Activity,
+  FileImage
 } from "lucide-react";
 
 const LabReports = () => {
@@ -26,7 +31,9 @@ const LabReports = () => {
       status: "verified" as const,
       fileType: "PDF",
       size: "2.4 MB",
-      verifiedDate: "2024-01-16"
+      verifiedDate: "2024-01-16",
+      category: "Blood Work",
+      priority: "High"
     },
     {
       id: "2", 
@@ -35,7 +42,9 @@ const LabReports = () => {
       status: "verified" as const,
       fileType: "PDF",
       size: "1.8 MB",
-      verifiedDate: "2023-12-29"
+      verifiedDate: "2023-12-29",
+      category: "Cardiovascular",
+      priority: "Medium"
     },
     {
       id: "3",
@@ -43,7 +52,9 @@ const LabReports = () => {
       uploadDate: "2024-01-20",
       status: "pending" as const,
       fileType: "PDF", 
-      size: "1.2 MB"
+      size: "1.2 MB",
+      category: "Endocrine",
+      priority: "High"
     },
     {
       id: "4",
@@ -52,7 +63,9 @@ const LabReports = () => {
       status: "rejected" as const,
       fileType: "JPG",
       size: "0.9 MB",
-      rejectionReason: "Image quality too low - please upload a clearer scan"
+      rejectionReason: "Image quality too low - please upload a clearer scan",
+      category: "Vitamins",
+      priority: "Low"
     }
   ];
 
@@ -60,27 +73,52 @@ const LabReports = () => {
     switch (status) {
       case "verified":
         return (
-          <Badge className="bg-success/20 text-success border-success/30">
+          <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
             <CheckCircle className="h-3 w-3 mr-1" />
             Verified
           </Badge>
         );
       case "pending":
         return (
-          <Badge className="bg-warning/20 text-warning border-warning/30">
+          <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100">
             <Clock className="h-3 w-3 mr-1" />
             Pending
           </Badge>
         );
       case "rejected":
         return (
-          <Badge className="bg-destructive/20 text-destructive border-destructive/30">
+          <Badge className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100">
             <XCircle className="h-3 w-3 mr-1" />
             Rejected
           </Badge>
         );
       default:
         return null;
+    }
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    switch (priority) {
+      case "High":
+        return <Badge className="bg-red-50 text-red-700 border-red-200 text-xs">High</Badge>;
+      case "Medium":
+        return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs">Medium</Badge>;
+      case "Low":
+        return <Badge className="bg-green-50 text-green-700 border-green-200 text-xs">Low</Badge>;
+      default:
+        return null;
+    }
+  };
+
+  const getFileIcon = (fileType: string) => {
+    switch (fileType) {
+      case "PDF":
+        return <FileText className="h-4 w-4 text-red-500" />;
+      case "JPG":
+      case "PNG":
+        return <FileImage className="h-4 w-4 text-blue-500" />;
+      default:
+        return <FileText className="h-4 w-4 text-gray-500" />;
     }
   };
 
@@ -95,131 +133,190 @@ const LabReports = () => {
   const statusCounts = getStatusCounts();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Header Section */}
+      <div className="flex flex-col space-y-2">
+        <h1 className="text-3xl font-bold text-gray-900">Lab Reports</h1>
+        <p className="text-gray-600">Manage and track your health reports and test results</p>
+      </div>
+
+      {/* Status Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-emerald-700 mb-1">Verified Reports</p>
+                <p className="text-3xl font-bold text-emerald-900">{statusCounts.verified}</p>
+                <p className="text-xs text-emerald-600 mt-1">Successfully processed</p>
+              </div>
+              <div className="h-12 w-12 bg-emerald-200 rounded-lg flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-emerald-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-amber-700 mb-1">Under Review</p>
+                <p className="text-3xl font-bold text-amber-900">{statusCounts.pending}</p>
+                <p className="text-xs text-amber-600 mt-1">Processing in progress</p>
+              </div>
+              <div className="h-12 w-12 bg-amber-200 rounded-lg flex items-center justify-center">
+                <Clock className="h-6 w-6 text-amber-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-red-50 to-red-100">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-red-700 mb-1">Need Attention</p>
+                <p className="text-3xl font-bold text-red-900">{statusCounts.rejected}</p>
+                <p className="text-xs text-red-600 mt-1">Requires action</p>
+              </div>
+              <div className="h-12 w-12 bg-red-200 rounded-lg flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-red-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Upload Section */}
-      <Card className="bg-gradient-card border-border/50 shadow-card">
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Upload className="h-5 w-5 mr-2 text-primary" />
-            Upload Lab Report
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
+            <Upload className="h-5 w-5 mr-3 text-blue-600" />
+            Upload New Report
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Upload your health/lab reports for analysis. Accepted formats: PDF, JPG, PNG
-            </p>
-            <FileUpload />
+            <LabReportUpload />
             {uploadedFiles.length > 0 && (
-              <div className="bg-success/10 border border-success/20 rounded-lg p-3">
-                <p className="text-sm text-success font-medium">
-                  {uploadedFiles.length} file(s) uploaded successfully. Processing will begin shortly.
-                </p>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <CheckCircle className="h-4 w-4 text-emerald-600 mr-2" />
+                  <p className="text-sm text-emerald-700 font-medium">
+                    {uploadedFiles.length} file(s) uploaded successfully. Processing will begin shortly.
+                  </p>
+                </div>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-card border-border/50 shadow-card">
-          <CardContent className="p-6 text-center">
-            <CheckCircle className="h-8 w-8 mx-auto mb-2 text-success" />
-            <p className="text-2xl font-bold text-success">{statusCounts.verified}</p>
-            <p className="text-sm text-muted-foreground">Verified Reports</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border/50 shadow-card">
-          <CardContent className="p-6 text-center">
-            <Clock className="h-8 w-8 mx-auto mb-2 text-warning" />
-            <p className="text-2xl font-bold text-warning">{statusCounts.pending}</p>
-            <p className="text-sm text-muted-foreground">Under Review</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border/50 shadow-card">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-8 w-8 mx-auto mb-2 text-destructive" />
-            <p className="text-2xl font-bold text-destructive">{statusCounts.rejected}</p>
-            <p className="text-sm text-muted-foreground">Need Attention</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Reports List */}
-      <Card className="bg-card border-border/50 shadow-card">
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <FileText className="h-5 w-5 mr-2 text-primary" />
-            Your Lab Reports
-          </CardTitle>
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
+              <FileText className="h-5 w-5 mr-3 text-blue-600" />
+              Your Reports
+            </CardTitle>
+            <div className="flex items-center space-x-2">
+              <Badge variant="outline" className="text-xs">
+                {labReports.length} Total
+              </Badge>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {labReports.map((report) => (
-            <div 
-              key={report.id} 
-              className="border border-border/50 rounded-lg p-4 hover:bg-secondary/50 transition-colors"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex-1">
-                  <h3 className="font-medium text-foreground mb-1">{report.name}</h3>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      Uploaded: {new Date(report.uploadDate).toLocaleDateString()}
+        <CardContent className="p-0">
+          <div className="divide-y divide-gray-100">
+            {labReports.map((report, index) => (
+              <div 
+                key={report.id} 
+                className="p-6 hover:bg-gray-50 transition-colors duration-200"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <div className="flex items-center space-x-2">
+                        {getFileIcon(report.fileType)}
+                        <h3 className="font-semibold text-gray-900 truncate">{report.name}</h3>
+                      </div>
+                      {getPriorityBadge(report.priority)}
                     </div>
-                    <span>{report.fileType} • {report.size}</span>
+                    
+                    <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
+                      <div className="flex items-center space-x-1">
+                        <Calendar className="h-4 w-4" />
+                        <span>Uploaded {new Date(report.uploadDate).toLocaleDateString()}</span>
+                      </div>
+                      <span>•</span>
+                      <span>{report.fileType} • {report.size}</span>
+                      <span>•</span>
+                      <span className="text-blue-600 font-medium">{report.category}</span>
+                    </div>
+
+                    {/* Status-specific content */}
+                    {report.status === "pending" && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Review Progress</span>
+                          <span className="text-amber-600 font-medium">60%</span>
+                        </div>
+                        <Progress value={60} className="h-2" />
+                        <p className="text-xs text-gray-500">
+                          Estimated completion: 1-2 business days
+                        </p>
+                      </div>
+                    )}
+                    
+                    {report.status === "verified" && report.verifiedDate && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                        <div className="flex items-center">
+                          <CheckCircle className="h-4 w-4 text-emerald-600 mr-2" />
+                          <p className="text-sm text-emerald-700">
+                            Report verified on {new Date(report.verifiedDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {report.status === "rejected" && report.rejectionReason && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center">
+                            <XCircle className="h-4 w-4 text-red-600 mr-2" />
+                            <p className="text-sm font-medium text-red-700">Rejection Reason:</p>
+                          </div>
+                          <p className="text-sm text-red-600 ml-6">{report.rejectionReason}</p>
+                          <Button variant="outline" size="sm" className="ml-6 mt-2">
+                            Re-upload Report
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {getStatusBadge(report.status)}
-                  <Button variant="outline" size="sm">
-                    <Download className="h-4 w-4" />
-                  </Button>
+                  
+                  <div className="flex items-center space-x-3 ml-4">
+                    {getStatusBadge(report.status)}
+                    <Button variant="outline" size="sm" className="border-gray-300">
+                      <Download className="h-4 w-4 mr-1" />
+                      Download
+                    </Button>
+                  </div>
                 </div>
               </div>
-              
-              {report.status === "pending" && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Review Progress</span>
-                    <span className="text-warning">60%</span>
-                  </div>
-                  <Progress value={60} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    Estimated completion: 1-2 business days
-                  </p>
-                </div>
-              )}
-              
-              {report.status === "verified" && report.verifiedDate && (
-                <div className="bg-success/10 border border-success/20 rounded p-2 mt-2">
-                  <p className="text-xs text-success">
-                    ✓ Report verified on {new Date(report.verifiedDate).toLocaleDateString()}
-                  </p>
-                </div>
-              )}
-              
-              {report.status === "rejected" && report.rejectionReason && (
-                <div className="bg-destructive/10 border border-destructive/20 rounded p-2 mt-2">
-                  <p className="text-xs text-destructive font-medium">Reason for rejection:</p>
-                  <p className="text-xs text-destructive">{report.rejectionReason}</p>
-                  <Button variant="outline" size="sm" className="mt-2">
-                    Re-upload Report
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
           
           {labReports.length === 0 && (
-            <div className="text-center py-8">
-              <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No lab reports uploaded yet.</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Upload your first report to get started with health tracking.
+            <div className="text-center py-12">
+              <div className="h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No reports uploaded yet</h3>
+              <p className="text-gray-600 max-w-sm mx-auto">
+                Upload your first lab report to start tracking your health metrics and get AI-powered insights.
               </p>
             </div>
           )}
