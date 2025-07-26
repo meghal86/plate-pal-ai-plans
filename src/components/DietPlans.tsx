@@ -15,7 +15,8 @@ import {
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { generateDietPlan } from "@/api/generate-diet-plan";
+import { generateDietPlan, generatePlanEmbedding } from "@/api/generate-diet-plan";
+import { searchPlansBySimilarity, SearchResult } from "@/api/search-plans";
 import React from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -63,6 +64,9 @@ const DietPlans = () => {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [showPlanDetails, setShowPlanDetails] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -277,12 +281,15 @@ const DietPlans = () => {
         hasTitle: !!aiPlanData.title,
         hasDescription: !!aiPlanData.description,
         hasDailyMeals: !!aiPlanData.dailyMeals,
-        dailyMealsLength: aiPlanData.dailyMeals?.length || 0,
-        hasMeals: !!aiPlanData.meals,
-        mealsLength: aiPlanData.meals?.length || 0
+        dailyMealsLength: aiPlanData.dailyMeals?.length || 0
       });
       
-      // Save the generated plan to the database
+      // Generate embedding for the plan content
+      console.log('Generating embedding for plan...');
+      const embedding = await generatePlanEmbedding(aiPlanData);
+      console.log('Generated embedding with dimensions:', embedding.length);
+      
+      // Save the generated plan to the database with embedding
       const { data: savedPlan, error: saveError } = await supabase
         .from('nutrition_plans')
         .insert({
@@ -292,7 +299,8 @@ const DietPlans = () => {
           plan_content: aiPlanData,
           duration: preferences.duration,
           calories: preferences.targetCalories,
-          is_active: true // Set as active by default
+          is_active: true, // Set as active by default
+          embedding: embedding // Add the embedding vector
         })
         .select()
         .single();
@@ -690,22 +698,21 @@ const DietPlans = () => {
         console.error('Error deleting plan:', error);
         toast({
           title: "Error",
-          description: "Failed to delete the plan. Please try again.",
+          description: "Failed to delete plan",
           variant: "destructive"
         });
       } else {
-        // Refresh the plans list
         await loadGeneratedPlans();
         toast({
           title: "Plan Deleted",
-          description: "The plan has been successfully deleted.",
+          description: "The plan has been removed from your account.",
         });
       }
     } catch (error) {
       console.error('Error deleting plan:', error);
       toast({
         title: "Error",
-        description: "Failed to delete the plan. Please try again.",
+        description: "Failed to delete plan",
         variant: "destructive"
       });
     }
@@ -726,6 +733,50 @@ const DietPlans = () => {
 
   const triggerFileUpload = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Not signed in",
+          description: "You must be signed in to search plans.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const results = await searchPlansBySimilarity(searchQuery, user.id);
+      setSearchResults(results);
+      
+      if (results.length === 0) {
+        toast({
+          title: "No Results",
+          description: "No plans found matching your search query.",
+        });
+      } else {
+        toast({
+          title: "Search Complete",
+          description: `Found ${results.length} plan(s) matching your query.`,
+        });
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      toast({
+        title: "Search Error",
+        description: "Failed to search plans. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
@@ -1567,6 +1618,33 @@ const DietPlans = () => {
                 <List className="h-5 w-5 mr-2 text-gray-600" />
                 All Plans ({generatedPlans.length})
               </h3>
+              
+              {/* Search Section */}
+              <div className="flex items-center space-x-2">
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Search plans..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    className="w-64 pr-10"
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleSearch}
+                    disabled={isSearching}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
             
             {loadingPlans ? (
@@ -1902,6 +1980,78 @@ const DietPlans = () => {
                       Generate Your First Plan
                     </Button>
                   </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Search Results Section */}
+            {searchResults.length > 0 && (
+              <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <Search className="h-5 w-5 mr-2 text-blue-600" />
+                    Search Results ({searchResults.length})
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchResults([]);
+                      setSearchQuery('');
+                    }}
+                    className="text-gray-600 border-gray-300 hover:bg-gray-50"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Clear Search
+                  </Button>
+                </div>
+                
+                <div className="space-y-4">
+                  {searchResults.map((result) => (
+                    <div key={result.id} className="bg-white border border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h4 className="font-semibold text-gray-900">{result.title}</h4>
+                            <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
+                              {Math.round(result.similarity * 100)}% Match
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{result.description}</p>
+                          <div className="flex items-center space-x-4 text-xs text-gray-500">
+                            <span className="flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {result.duration}
+                            </span>
+                            <span className="flex items-center">
+                              <Target className="h-3 w-3 mr-1" />
+                              {result.calories} cal/day
+                            </span>
+                            <span className="flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {new Date(result.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Find the full plan data and show details
+                            const fullPlan = generatedPlans.find(p => p.id === result.id);
+                            if (fullPlan) {
+                              setSelectedPlan(fullPlan);
+                              setShowPlanDetails(true);
+                            }
+                          }}
+                          className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

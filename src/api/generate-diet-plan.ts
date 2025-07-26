@@ -1,4 +1,5 @@
 import { API_CONFIG, NUTRITION_PROMPTS } from '@/config/api';
+import { generateEmbedding, extractPlanTextForEmbedding } from './generate-embedding';
 
 export async function generateDietPlan(userContext: string, userId: string) {
   try {
@@ -120,46 +121,38 @@ export async function generateDietPlan(userContext: string, userId: string) {
         }
       }
       
-      // If we got a plan with the old structure (just meals array), convert it to daily structure
+      // Convert old structure to new if needed
       if (parsedPlan.meals && !parsedPlan.dailyMeals) {
-        console.log('Converting old meal structure to daily structure');
-        parsedPlan.dailyMeals = [{
-          day: 1,
-          date: new Date().toISOString().split('T')[0],
-          meals: parsedPlan.meals
-        }];
-      }
-      
-      // Clean up the description if it contains JSON
-      if (parsedPlan.description && parsedPlan.description.includes('{')) {
-        try {
-          // If description contains JSON, extract just the text part
-          const descMatch = parsedPlan.description.match(/"description":\s*"([^"]+)"/);
-          if (descMatch) {
-            parsedPlan.description = descMatch[1];
-          } else {
-            // Fallback: take first 200 characters before any JSON
-            const jsonStart = parsedPlan.description.indexOf('{');
-            if (jsonStart > 0) {
-              parsedPlan.description = parsedPlan.description.substring(0, jsonStart).trim();
-            }
+        console.log('Converting old meal structure to new dailyMeals structure');
+        parsedPlan.dailyMeals = [
+          {
+            day: 1,
+            date: new Date().toISOString().split('T')[0],
+            meals: parsedPlan.meals
           }
-        } catch (descError) {
-          console.log('Description cleanup failed, using original');
-        }
+        ];
       }
       
-      // Ensure we have a clean description
-      if (!parsedPlan.description || parsedPlan.description.length < 10) {
-        parsedPlan.description = `Personalized ${parsedPlan.title || 'nutrition'} plan designed for your specific goals and preferences.`;
-      }
+      console.log('Final plan structure:', {
+        title: parsedPlan.title,
+        description: parsedPlan.description?.substring(0, 100) + '...',
+        dailyMealsCount: parsedPlan.dailyMeals?.length || 0,
+        mealsCount: parsedPlan.meals?.length || 0
+      });
       
-      return parsedPlan;
+      return {
+        title: parsedPlan.title || "AI-Generated Personalized Plan",
+        description: parsedPlan.description || "A personalized nutrition plan designed for your specific goals and preferences.",
+        duration: parsedPlan.duration || "30 days",
+        calories: parsedPlan.calories || "1800-2000",
+        dailyMeals: parsedPlan.dailyMeals || generateFallbackPlan()
+      };
+      
     } catch (parseError) {
-      console.error('JSON parsing failed:', parseError);
-      console.log('Raw AI response:', aiResponse);
+      console.error('Error parsing AI response:', parseError);
+      console.log('Raw AI response that failed to parse:', aiResponse);
       
-      // If JSON parsing fails, create a structured plan from the text
+      // Return fallback plan if parsing fails
       return {
         title: "AI-Generated Personalized Plan",
         description: "A personalized nutrition plan designed for your specific goals and preferences.",
@@ -169,8 +162,25 @@ export async function generateDietPlan(userContext: string, userId: string) {
       };
     }
   } catch (error) {
-    console.error('Diet plan generation error:', error);
+    console.error('Error generating diet plan:', error);
     throw error;
+  }
+}
+
+// Function to generate embedding for a plan
+export async function generatePlanEmbedding(planContent: any): Promise<number[]> {
+  try {
+    const planText = extractPlanTextForEmbedding(planContent);
+    console.log('Generating embedding for plan text length:', planText.length);
+    
+    const embedding = await generateEmbedding(planText);
+    console.log('Generated embedding with dimensions:', embedding.length);
+    
+    return embedding;
+  } catch (error) {
+    console.error('Error generating plan embedding:', error);
+    // Return a zero vector as fallback
+    return new Array(1536).fill(0);
   }
 }
 
