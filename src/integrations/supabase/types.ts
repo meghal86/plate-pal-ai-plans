@@ -484,6 +484,8 @@ export type Database = {
           health_goals: string | null
           height: number | null
           id: string
+          notification_preferences: Json | null
+          phone_number: string | null
           updated_at: string | null
           user_id: string | null
           weight: number | null
@@ -500,6 +502,8 @@ export type Database = {
           health_goals?: string | null
           height?: number | null
           id?: string
+          notification_preferences?: Json | null
+          phone_number?: string | null
           updated_at?: string | null
           user_id?: string | null
           weight?: number | null
@@ -516,6 +520,8 @@ export type Database = {
           health_goals?: string | null
           height?: number | null
           id?: string
+          notification_preferences?: Json | null
+          phone_number?: string | null
           updated_at?: string | null
           user_id?: string | null
           weight?: number | null

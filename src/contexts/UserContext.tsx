@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -7,6 +7,15 @@ interface UserProfile {
   user_id: string;
   full_name: string | null;
   email: string | null;
+  phone_number: string | null;
+  notification_preferences: {
+    email: boolean;
+    sms: boolean;
+    push: boolean;
+    meal_reminders: boolean;
+    health_tips: boolean;
+    family_updates: boolean;
+  } | null;
   age: number | null;
   weight: number | null;
   height: number | null;
@@ -81,13 +90,23 @@ function UserProvider({ children }: UserProviderProps) {
       user_id: currentUser.id,
       full_name: fullName,
       email: currentUser.email,
+      phone_number: null,
+      notification_preferences: {
+        email: true,
+        sms: false,
+        push: true,
+        meal_reminders: true,
+        health_tips: true,
+        family_updates: true
+      },
       age: null,
       weight: null,
       height: null,
       activity_level: 'moderate',
       health_goals: 'General health',
       dietary_restrictions: 'None',
-      weight_unit: 'kg'
+      weight_unit: 'kg',
+      family_id: null
     };
   };
 
@@ -125,24 +144,64 @@ function UserProvider({ children }: UserProviderProps) {
       
       console.log('📡 Database query result:', { profileData, error });
       
-      if (!error && profileData && profileData.full_name) {
-        // Use real profile from database
+      if (!error && profileData && profileData.user_id) {
+        // Use real profile from database, but ensure new fields are included
         console.log('✅ Found existing profile:', profileData);
-        setProfile(profileData);
+        console.log('🔍 Profile full_name:', profileData.full_name);
+        
+        // Always preserve the existing full_name, never overwrite it
+        const completeProfile: UserProfile = {
+          ...profileData,
+          full_name: profileData.full_name || 'User', // Preserve existing name
+          phone_number: profileData.phone_number || null,
+          notification_preferences: (() => {
+            // Handle the notification_preferences from database
+            if (profileData.notification_preferences && typeof profileData.notification_preferences === 'object') {
+              const prefs = profileData.notification_preferences as any;
+              return {
+                email: prefs.email ?? true,
+                sms: prefs.sms ?? false,
+                push: prefs.push ?? true,
+                meal_reminders: prefs.meal_reminders ?? true,
+                health_tips: prefs.health_tips ?? true,
+                family_updates: prefs.family_updates ?? true
+              };
+            }
+            return {
+              email: true,
+              sms: false,
+              push: true,
+              meal_reminders: true,
+              health_tips: true,
+              family_updates: true
+            };
+          })()
+        };
+        
+        console.log('✅ Setting complete profile:', completeProfile);
+        console.log('🔍 Final full_name:', completeProfile.full_name);
+        setProfile(completeProfile);
         setLoading(false);
       } else {
         // No profile found or error, create from user data
         console.log('📝 No existing profile found or invalid data, creating from user data');
-        const newProfile = createProfileFromUser(currentUser);
-        console.log('✅ New profile created:', newProfile);
-        setProfile(newProfile);
+        console.log('🔍 Profile data received:', profileData);
+        console.log('🔍 Error if any:', error);
+        
+        const newProfileData = createProfileFromUser(currentUser);
+        console.log('✅ New profile created:', newProfileData);
+        console.log('🔍 New profile full_name:', newProfileData.full_name);
+        
+        // For new profiles, we don't have id, created_at, updated_at yet
+        // These will be set by the database when we insert
+        setProfile(newProfileData as UserProfile);
         setLoading(false);
         
         // Try to save the profile to database for future use
         try {
           const { error: saveError } = await supabase
             .from('user_profiles')
-            .insert([newProfile]);
+            .insert([newProfileData]);
           
           if (saveError) {
             console.log('⚠️ Could not save profile to database:', saveError);
@@ -196,7 +255,36 @@ function UserProvider({ children }: UserProviderProps) {
         throw error;
       }
 
-      setProfile(data);
+      // Ensure the updated profile includes all required fields
+      const completeProfile: UserProfile = {
+        ...data,
+        full_name: data.full_name || 'User', // Preserve existing name
+        phone_number: data.phone_number || null,
+        notification_preferences: (() => {
+          // Handle the notification_preferences from database
+          if (data.notification_preferences && typeof data.notification_preferences === 'object') {
+            const prefs = data.notification_preferences as any;
+            return {
+              email: prefs.email ?? true,
+              sms: prefs.sms ?? false,
+              push: prefs.push ?? true,
+              meal_reminders: prefs.meal_reminders ?? true,
+              health_tips: prefs.health_tips ?? true,
+              family_updates: prefs.family_updates ?? true
+            };
+          }
+          return {
+            email: true,
+            sms: false,
+            push: true,
+            meal_reminders: true,
+            health_tips: true,
+            family_updates: true
+          };
+        })()
+      };
+
+      setProfile(completeProfile);
       toast({
         title: "Success",
         description: "Profile updated successfully",
