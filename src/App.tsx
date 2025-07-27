@@ -17,6 +17,7 @@ import Tracking from "./pages/Tracking";
 import HealthMetrics from "./pages/HealthMetrics";
 import LabReports from "./pages/LabReports";
 import Rewards from "./pages/Rewards";
+import Kids from "./pages/Kids";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ function AppContent() {
           <Route path="/health-metrics" element={<HealthMetrics />} />
           <Route path="/lab-reports" element={<LabReports />} />
           <Route path="/rewards" element={<Rewards />} />
+          <Route path="/kids" element={<Kids />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

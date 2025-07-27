@@ -30,7 +30,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useUser } from "@/contexts/UserContext";
-import KidsRecipes from "./KidsRecipes";
+
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -410,18 +410,7 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Kids' Recipes Section */}
-      <Card className="bg-white/80 backdrop-blur-sm border-white/30 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <ChefHat className="h-5 w-5 text-orange-500" />
-            Kids' Recipes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <KidsRecipes />
-        </CardContent>
-      </Card>
+
     </div>
   );
 };

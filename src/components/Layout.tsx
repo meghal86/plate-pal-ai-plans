@@ -9,7 +9,8 @@ import {
   Trophy, 
   Users, 
   Menu,
-  Settings
+  Settings,
+  Baby
 } from "lucide-react";
 import Header from "./Header";
 import { useUser } from "@/contexts/UserContext";
@@ -43,11 +44,13 @@ const Layout = ({ children, showSidebar = true }: LayoutProps) => {
     else if (path === '/health-metrics') setActiveTab('health-metrics');
     else if (path === '/lab-reports') setActiveTab('lab-reports');
     else if (path === '/rewards') setActiveTab('rewards');
+    else if (path === '/kids') setActiveTab('kids');
   }, [location.pathname]);
 
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'plans', label: 'Diet Plans', icon: Utensils, path: '/upload' },
+    { id: 'kids', label: 'Kids Zone', icon: Baby, path: '/kids' },
     { id: 'tracking', label: 'Progress Tracking', icon: TrendingUp, path: '/tracking' },
     { id: 'health-metrics', label: 'Health Metrics', icon: Heart, path: '/health-metrics' },
     { id: 'lab-reports', label: 'Lab Reports', icon: FileText, path: '/lab-reports' },

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
+import { API_CONFIG } from "@/config/api";
 import { 
   ChefHat, 
   Calendar, 
@@ -48,7 +49,21 @@ interface Recipe {
     fiber: number;
     sugar: number;
   };
+  dietary_preferences: string[];
+  allergens: string[];
   created_at?: string;
+}
+
+// Interface for kid preferences
+interface KidPreferences {
+  age_group: string;
+  dietary_restrictions: string[];
+  favorite_foods: string[];
+  disliked_foods: string[];
+  allergies: string[];
+  cooking_skill: 'beginner' | 'intermediate' | 'advanced';
+  meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  time_available: 'quick' | 'moderate' | 'elaborate';
 }
 
 // Age group options
@@ -80,7 +95,9 @@ const mockRecipes: Recipe[] = [
       fat: 8,
       fiber: 6,
       sugar: 3
-    }
+    },
+    dietary_preferences: ['vegetarian'],
+    allergens: ['dairy']
   },
   {
     id: "2",
@@ -103,7 +120,9 @@ const mockRecipes: Recipe[] = [
       fat: 2,
       fiber: 8,
       sugar: 22
-    }
+    },
+    dietary_preferences: ['vegetarian'],
+    allergens: ['dairy']
   },
   {
     id: "3",
@@ -126,7 +145,9 @@ const mockRecipes: Recipe[] = [
       fat: 12,
       fiber: 5,
       sugar: 4
-    }
+    },
+    dietary_preferences: ['vegetarian'],
+    allergens: ['dairy', 'gluten']
   }
 ];
 
@@ -139,9 +160,22 @@ const KidsRecipes: React.FC = () => {
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>("2-5");
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [showRecipeDialog, setShowRecipeDialog] = useState(false);
+  const [showPreferencesForm, setShowPreferencesForm] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // Kid preferences state
+  const [kidPreferences, setKidPreferences] = useState<KidPreferences>({
+    age_group: "2-5",
+    dietary_restrictions: [],
+    favorite_foods: [],
+    disliked_foods: [],
+    allergies: [],
+    cooking_skill: 'beginner',
+    meal_type: 'lunch',
+    time_available: 'moderate'
+  });
 
   // Language detection for Hindi/English placeholders
   const isHindi = navigator.language?.startsWith('hi') || false;
@@ -219,59 +253,188 @@ const KidsRecipes: React.FC = () => {
     }
 
     setGenerating(true);
+    
+    // Calculate calories based on meal type (moved outside try block for fallback access)
+    const calorieRanges = {
+      breakfast: [300, 500],
+      lunch: [400, 600],
+      dinner: [500, 700],
+      snack: [150, 300]
+    };
+    
+    const mealType = kidPreferences.meal_type;
+    const [minCal, maxCal] = calorieRanges[mealType as keyof typeof calorieRanges] || [400, 600];
+    const calories = Math.floor(Math.random() * (maxCal - minCal + 1)) + minCal;
+    
     try {
-      const prompt = `Create a kid-friendly recipe for age group ${selectedAgeGroup} years old. 
-      Requirements:
-      - Total calories: 1200
-      - Low sugar content
-      - High in vitamins and nutrients
-      - Fun and appealing presentation
-      - Easy to prepare
-      - Include ingredients list and step-by-step instructions
-      - Add nutrition information (protein, carbs, fat, fiber, sugar)
-      
-      Format the response as JSON with the following structure:
-      {
-        "name": "Recipe Name",
-        "subtitle": "Brief description",
-        "calories": 1200,
-        "prep_time": "15 min",
-        "difficulty": "Easy",
-        "ingredients": ["ingredient1", "ingredient2"],
-        "instructions": ["step1", "step2"],
-        "nutrition_info": {
-          "protein": 25,
-          "carbs": 150,
-          "fat": 30,
-          "fiber": 15,
-          "sugar": 8
-        }
-      }`;
+      // Create a more personalized recipe based on preferences
+      const mealTypes = {
+        breakfast: ['Oatmeal', 'Pancakes', 'Smoothie Bowl', 'Eggs', 'Toast'],
+        lunch: ['Pizza', 'Pasta', 'Burger', 'Sandwich', 'Rice Bowl'],
+        dinner: ['Tacos', 'Stir Fry', 'Soup', 'Casserole', 'Grilled'],
+        snack: ['Smoothie', 'Trail Mix', 'Yogurt', 'Fruit', 'Crackers']
+      };
 
-      const response = await fetch(
-        'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.REACT_APP_GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY'}`
-          },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: prompt
-              }]
-            }]
-          })
-        }
+      const availableMeals = mealTypes[mealType as keyof typeof mealTypes] || mealTypes.lunch;
+      const randomMeal = availableMeals[Math.floor(Math.random() * availableMeals.length)];
+      
+      const agePrefix = kidPreferences.age_group === '2-5' ? 'Fun Dino' : 'Rainbow';
+      const skillLevel = kidPreferences.cooking_skill;
+      const timeLevel = kidPreferences.time_available;
+      
+      // Adjust prep time based on time available
+      const prepTimes = {
+        quick: '10 min',
+        moderate: '20 min',
+        elaborate: '35 min'
+      };
+      
+      // Adjust difficulty based on cooking skill
+      const difficulties = {
+        beginner: 'Easy',
+        intermediate: 'Medium',
+        advanced: 'Advanced'
+      };
+      
+      // Create personalized ingredients based on preferences
+      const baseIngredients = [
+        "Whole grain bread",
+        "Fresh vegetables",
+        "Lean protein",
+        "Healthy fats"
+      ];
+      
+      // Add favorite foods if available
+      const favoriteIngredients = kidPreferences.favorite_foods.slice(0, 2);
+      const allIngredients = [...baseIngredients, ...favoriteIngredients];
+      
+      // Filter out disliked foods
+      const filteredIngredients = allIngredients.filter(
+        ingredient => !kidPreferences.disliked_foods.some(
+          disliked => ingredient.toLowerCase().includes(disliked.toLowerCase())
+        )
       );
+      
+      const mockRecipe = {
+        name: `${agePrefix} ${randomMeal}`,
+        subtitle: `${skillLevel} level, ${timeLevel} prep - ${calories} calories`,
+        calories: calories,
+        prep_time: prepTimes[timeLevel as keyof typeof prepTimes],
+        difficulty: difficulties[skillLevel as keyof typeof difficulties],
+        ingredients: filteredIngredients.slice(0, 6),
+        instructions: [
+          "Gather all fresh ingredients",
+          "Prepare according to skill level",
+          "Make it fun and colorful",
+          "Serve with love and care"
+        ],
+        nutrition_info: {
+          protein: Math.floor(calories * 0.15 / 4), // 15% of calories from protein
+          carbs: Math.floor(calories * 0.55 / 4),   // 55% of calories from carbs
+          fat: Math.floor(calories * 0.30 / 9),     // 30% of calories from fat
+          fiber: Math.floor(calories * 0.03),       // 3% fiber
+          sugar: Math.floor(calories * 0.08)        // 8% sugar
+        },
+        dietary_preferences: kidPreferences.dietary_restrictions,
+        allergens: kidPreferences.allergies
+      };
+
+      const apiKey = API_CONFIG.GEMINI_API_KEY;
+
+      if (!apiKey) {
+        throw new Error('Gemini API key is not configured');
+      }
+
+      // Create a comprehensive prompt based on preferences
+      const prompt = `Create a personalized kid-friendly recipe with the following requirements:
+
+Age Group: ${kidPreferences.age_group} years old
+Meal Type: ${kidPreferences.meal_type}
+Cooking Skill: ${kidPreferences.cooking_skill}
+Time Available: ${kidPreferences.time_available}
+Dietary Restrictions: ${kidPreferences.dietary_restrictions.join(', ') || 'None'}
+Allergies to Avoid: ${kidPreferences.allergies.join(', ') || 'None'}
+Favorite Foods: ${kidPreferences.favorite_foods.join(', ') || 'Any'}
+Disliked Foods: ${kidPreferences.disliked_foods.join(', ') || 'None'}
+
+Requirements:
+- Total calories: ${calories}
+- Age-appropriate and fun presentation
+- Easy to follow instructions
+- Nutritious and balanced
+- Safe for the specified allergies
+- Respect dietary restrictions
+- Include favorite foods when possible
+- Avoid disliked foods
+
+Format the response as JSON with the following structure:
+{
+  "name": "Recipe Name",
+  "subtitle": "Brief description",
+  "calories": ${calories},
+  "prep_time": "X min",
+  "difficulty": "Easy/Medium/Advanced",
+  "ingredients": ["ingredient1", "ingredient2"],
+  "instructions": ["step1", "step2"],
+  "nutrition_info": {
+    "protein": X,
+    "carbs": X,
+    "fat": X,
+    "fiber": X,
+    "sugar": X
+  },
+  "dietary_preferences": ["vegetarian", "vegan", etc],
+  "allergens": ["dairy", "nuts", etc]
+}`;
+
+      console.log('🌐 Calling Gemini API with personalized preferences...');
+      
+      const response = await fetch(`${API_CONFIG.GEMINI_API_URL}/${API_CONFIG.GEMINI_MODEL}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 2048,
+          }
+        })
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to generate recipe');
+        const errorText = await response.text();
+        console.error('API Error:', response.status, errorText);
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      const generatedRecipe = JSON.parse(data.candidates[0].content.parts[0].text);
+      console.log('✅ Gemini API response:', data);
+
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error('Invalid response format from Gemini API');
+      }
+
+      const responseText = data.candidates[0].content.parts[0].text;
+      console.log('📝 Raw API response text:', responseText);
+
+      // Try to extract JSON from the response
+      let jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in API response');
+      }
+
+      const generatedRecipe = JSON.parse(jsonMatch[0]);
+      
+      // Validate the response structure
+      if (!generatedRecipe.name || !generatedRecipe.ingredients || !generatedRecipe.instructions) {
+        throw new Error('Invalid recipe structure in API response');
+      }
       
       // Create new recipe object
       const newRecipe: Recipe = {
@@ -313,10 +476,59 @@ const KidsRecipes: React.FC = () => {
 
     } catch (error) {
       console.error('Error generating recipe:', error);
+      
+      // Fallback to mock data if API fails
+      console.log('🔄 API failed, using fallback mock recipe...');
+      const fallbackRecipe = {
+        name: `${kidPreferences.age_group === '2-5' ? 'Fun Dino' : 'Rainbow'} ${kidPreferences.meal_type.charAt(0).toUpperCase() + kidPreferences.meal_type.slice(1)}`,
+        subtitle: `${kidPreferences.cooking_skill} level, ${kidPreferences.time_available} prep - ${calories} calories`,
+        calories: calories,
+        prep_time: kidPreferences.time_available === 'quick' ? '10 min' : kidPreferences.time_available === 'moderate' ? '20 min' : '35 min',
+        difficulty: kidPreferences.cooking_skill === 'beginner' ? 'Easy' : kidPreferences.cooking_skill === 'intermediate' ? 'Medium' : 'Advanced',
+        ingredients: [
+          "Whole grain bread",
+          "Fresh vegetables",
+          "Lean protein",
+          "Healthy fats",
+          ...kidPreferences.favorite_foods.slice(0, 2)
+        ].filter(ingredient => 
+          !kidPreferences.disliked_foods.some(disliked => 
+            ingredient.toLowerCase().includes(disliked.toLowerCase())
+          )
+        ),
+        instructions: [
+          "Gather all fresh ingredients",
+          "Prepare according to skill level",
+          "Make it fun and colorful",
+          "Serve with love and care"
+        ],
+        nutrition_info: {
+          protein: Math.floor(calories * 0.15 / 4),
+          carbs: Math.floor(calories * 0.55 / 4),
+          fat: Math.floor(calories * 0.30 / 9),
+          fiber: Math.floor(calories * 0.03),
+          sugar: Math.floor(calories * 0.08)
+        },
+        dietary_preferences: kidPreferences.dietary_restrictions,
+        allergens: kidPreferences.allergies
+      };
+      
+      const generatedRecipe = fallbackRecipe;
+      
+      // Create new recipe object
+      const newRecipe: Recipe = {
+        id: Date.now().toString(),
+        ...generatedRecipe,
+        age_group: selectedAgeGroup,
+        created_at: new Date().toISOString()
+      };
+
+      // Add to local state
+      setRecipes(prev => [newRecipe, ...prev]);
+      
       toast({
-        title: placeholders.error,
-        description: "Failed to generate recipe. Please try again.",
-        variant: "destructive"
+        title: "Recipe Generated (Fallback)",
+        description: "API unavailable, using personalized mock recipe",
       });
     } finally {
       setGenerating(false);
@@ -387,6 +599,16 @@ const KidsRecipes: React.FC = () => {
               })}
             </SelectContent>
           </Select>
+          
+          {/* Preferences Button */}
+          <Button 
+            variant="outline"
+            onClick={() => setShowPreferencesForm(true)}
+            className="border-orange-200 text-orange-600 hover:bg-orange-50"
+          >
+            <User className="h-4 w-4 mr-2" />
+            {isHindi ? "प्राथमिकताएं" : "Preferences"}
+          </Button>
           
           <Button
             onClick={generateRecipe}
@@ -606,6 +828,215 @@ const KidsRecipes: React.FC = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Preferences Form Dialog */}
+      <Dialog open={showPreferencesForm} onOpenChange={setShowPreferencesForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-orange-500" />
+              {isHindi ? "बच्चे की प्राथमिकताएं" : "Kid's Preferences"}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Age Group */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "आयु समूह" : "Age Group"}
+              </label>
+              <Select 
+                value={kidPreferences.age_group} 
+                onValueChange={(value) => setKidPreferences(prev => ({ ...prev, age_group: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2-5">2-5 years</SelectItem>
+                  <SelectItem value="6-12">6-12 years</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Meal Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "भोजन का प्रकार" : "Meal Type"}
+              </label>
+              <Select 
+                value={kidPreferences.meal_type} 
+                onValueChange={(value) => setKidPreferences(prev => ({ ...prev, meal_type: value as any }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="breakfast">Breakfast</SelectItem>
+                  <SelectItem value="lunch">Lunch</SelectItem>
+                  <SelectItem value="dinner">Dinner</SelectItem>
+                  <SelectItem value="snack">Snack</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Cooking Skill */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "खाना बनाने का स्तर" : "Cooking Skill Level"}
+              </label>
+              <Select 
+                value={kidPreferences.cooking_skill} 
+                onValueChange={(value) => setKidPreferences(prev => ({ ...prev, cooking_skill: value as any }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="beginner">Beginner</SelectItem>
+                  <SelectItem value="intermediate">Intermediate</SelectItem>
+                  <SelectItem value="advanced">Advanced</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Time Available */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "उपलब्ध समय" : "Time Available"}
+              </label>
+              <Select 
+                value={kidPreferences.time_available} 
+                onValueChange={(value) => setKidPreferences(prev => ({ ...prev, time_available: value as any }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quick">Quick (10-15 min)</SelectItem>
+                  <SelectItem value="moderate">Moderate (20-30 min)</SelectItem>
+                  <SelectItem value="elaborate">Elaborate (30+ min)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Dietary Restrictions */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "आहार प्रतिबंध" : "Dietary Restrictions"}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'nut-free', 'egg-free'].map((restriction) => (
+                  <label key={restriction} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={kidPreferences.dietary_restrictions.includes(restriction)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setKidPreferences(prev => ({
+                            ...prev,
+                            dietary_restrictions: [...prev.dietary_restrictions, restriction]
+                          }));
+                        } else {
+                          setKidPreferences(prev => ({
+                            ...prev,
+                            dietary_restrictions: prev.dietary_restrictions.filter(r => r !== restriction)
+                          }));
+                        }
+                      }}
+                      className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-sm text-gray-700 capitalize">{restriction.replace('-', ' ')}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Allergies */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "एलर्जी" : "Allergies"}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {['peanuts', 'tree nuts', 'milk', 'eggs', 'soy', 'wheat', 'fish', 'shellfish'].map((allergy) => (
+                  <label key={allergy} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={kidPreferences.allergies.includes(allergy)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setKidPreferences(prev => ({
+                            ...prev,
+                            allergies: [...prev.allergies, allergy]
+                          }));
+                        } else {
+                          setKidPreferences(prev => ({
+                            ...prev,
+                            allergies: prev.allergies.filter(a => a !== allergy)
+                          }));
+                        }
+                      }}
+                      className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                    />
+                    <span className="text-sm text-gray-700 capitalize">{allergy}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Favorite Foods */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "पसंदीदा खाद्य पदार्थ" : "Favorite Foods"}
+              </label>
+              <input
+                type="text"
+                placeholder={isHindi ? "उदाहरण: पिज़्ज़ा, पास्ता, फल" : "e.g., pizza, pasta, fruits"}
+                value={kidPreferences.favorite_foods.join(', ')}
+                onChange={(e) => {
+                  const foods = e.target.value.split(',').map(f => f.trim()).filter(f => f);
+                  setKidPreferences(prev => ({ ...prev, favorite_foods: foods }));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            {/* Disliked Foods */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "नापसंद खाद्य पदार्थ" : "Disliked Foods"}
+              </label>
+              <input
+                type="text"
+                placeholder={isHindi ? "उदाहरण: ब्रोकोली, मछली" : "e.g., broccoli, fish"}
+                value={kidPreferences.disliked_foods.join(', ')}
+                onChange={(e) => {
+                  const foods = e.target.value.split(',').map(f => f.trim()).filter(f => f);
+                  setKidPreferences(prev => ({ ...prev, disliked_foods: foods }));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                onClick={() => setShowPreferencesForm(false)}
+                className="flex-1"
+              >
+                {isHindi ? "सहेजें" : "Save Preferences"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowPreferencesForm(false)}
+                className="flex-1"
+              >
+                {isHindi ? "रद्द करें" : "Cancel"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
