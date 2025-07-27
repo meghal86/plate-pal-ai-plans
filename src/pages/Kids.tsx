@@ -18,8 +18,8 @@ type KidsProfile = Database['public']['Tables']['kids_profiles']['Row'];
 type Family = Database['public']['Tables']['families']['Row'];
 
 const Kids: React.FC = () => {
-  const { user } = useUser();
   const navigate = useNavigate();
+  const { user, profile } = useUser();
   const [kidsProfiles, setKidsProfiles] = useState<KidsProfile[]>([]);
   const [selectedKid, setSelectedKid] = useState<KidsProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,73 +27,14 @@ const Kids: React.FC = () => {
   // Load kids profiles
   useEffect(() => {
     const loadKidsProfiles = async () => {
-      if (!user?.id) return;
+      if (!user?.id || !profile?.family_id) return;
       
       try {
-        // First get the user's family
-        const { data: userProfile } = await supabase
-          .from('user_profiles')
-          .select('family_id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (userProfile?.family_id) {
-          // Get kids profiles for this family
-          const { data: kids, error } = await supabase
-            .from('kids_profiles')
-            .select('*')
-            .eq('family_id', userProfile.family_id)
-            .order('created_at', { ascending: true });
-
-          if (error) {
-            console.error('Error loading kids profiles:', error);
-          } else {
-            setKidsProfiles(kids || []);
-            // Auto-select first kid if available
-            if (kids && kids.length > 0 && !selectedKid) {
-              setSelectedKid(kids[0]);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error loading kids profiles:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadKidsProfiles();
-  }, [user?.id]);
-
-  // Refresh kids profiles when page comes into focus
-  useEffect(() => {
-    const handleFocus = () => {
-      refreshKidsProfiles();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [user?.id]);
-
-  // Refresh kids profiles
-  const refreshKidsProfiles = async () => {
-    setLoading(true);
-    if (!user?.id) return;
-    
-    try {
-      // First get the user's family
-      const { data: userProfile } = await supabase
-        .from('user_profiles')
-        .select('family_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (userProfile?.family_id) {
-        // Get kids profiles for this family
+        // Use the family_id from the existing user profile instead of querying again
         const { data: kids, error } = await supabase
           .from('kids_profiles')
           .select('*')
-          .eq('family_id', userProfile.family_id)
+          .eq('family_id', profile.family_id)
           .order('created_at', { ascending: true });
 
         if (error) {
@@ -104,6 +45,43 @@ const Kids: React.FC = () => {
           if (kids && kids.length > 0 && !selectedKid) {
             setSelectedKid(kids[0]);
           }
+        }
+      } catch (error) {
+        console.error('Error loading kids profiles:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Only load kids profiles if we have both user and profile with family_id
+    if (user?.id && profile?.family_id) {
+      loadKidsProfiles();
+    } else if (user?.id && !profile?.family_id) {
+      // If user exists but no family_id, just stop loading
+      setLoading(false);
+    }
+  }, [user?.id, profile?.family_id]); // Removed selectedKid from dependencies
+
+  // Refresh kids profiles
+  const refreshKidsProfiles = async () => {
+    if (!user?.id || !profile?.family_id) return;
+    
+    setLoading(true);
+    try {
+      // Use the family_id from the existing user profile
+      const { data: kids, error } = await supabase
+        .from('kids_profiles')
+        .select('*')
+        .eq('family_id', profile.family_id)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error loading kids profiles:', error);
+      } else {
+        setKidsProfiles(kids || []);
+        // Auto-select first kid if available
+        if (kids && kids.length > 0 && !selectedKid) {
+          setSelectedKid(kids[0]);
         }
       }
     } catch (error) {

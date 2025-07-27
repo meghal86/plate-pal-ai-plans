@@ -255,11 +255,7 @@ const KidsRecipes: React.FC<KidsRecipesProps> = ({ selectedChild }) => {
       
       console.log('✅ Preferences auto-populated:', preferences);
       
-      // Show a toast to inform user
-      toast({
-        title: "Preferences Updated",
-        description: `Loaded preferences for ${selectedChild.name} (${preferences.age_group} years)`,
-      });
+      // Removed toast notification to prevent annoying popups
     }
   }, [selectedChild, toast]);
 

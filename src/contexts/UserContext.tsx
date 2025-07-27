@@ -14,6 +14,7 @@ interface UserProfile {
   health_goals: string | null;
   dietary_restrictions: string | null;
   weight_unit: string | null;
+  family_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
