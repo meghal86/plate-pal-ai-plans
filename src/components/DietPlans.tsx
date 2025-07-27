@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
+import { 
   Upload, FileText, Sparkles, Search, Clock, Users, Star, Download, Target, TrendingUp, Heart, Zap, Plus, Calendar, Activity, Award, CheckCircle, ArrowRight, Brain, Lightbulb, AlertCircle, FileImage, File, XCircle, Loader2, Type, X, Eye, Play, RefreshCw, Trash2, TestTube, List
 } from "lucide-react";
 import { useState, useRef } from "react";
@@ -410,7 +410,7 @@ const DietPlans = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "Active":
-        return (
+  return (
           <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
             <Activity className="h-3 w-3 mr-1" />
             Active
@@ -794,14 +794,14 @@ const DietPlans = () => {
         <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
+        <div>
                 <p className="text-sm font-medium text-purple-700 mb-1">Your AI Plans</p>
                 <p className="text-3xl font-bold text-purple-900">{generatedPlans.length}</p>
                 <p className="text-xs text-purple-600 mt-1">Generated plans</p>
-              </div>
+        </div>
               <div className="h-12 w-12 bg-purple-200 rounded-lg flex items-center justify-center">
                 <Brain className="h-6 w-6 text-purple-700" />
-              </div>
+        </div>
             </div>
           </CardContent>
         </Card>
@@ -876,7 +876,7 @@ const DietPlans = () => {
               
               <TabsContent value="file" className="space-y-4">
                 <div className="space-y-4">
-                  <div>
+      <div>
                     <Label htmlFor="plan-name" className="text-sm font-medium text-gray-700 flex items-center">
                       Plan Name <span className="text-red-500 ml-1">*</span>
                     </Label>
@@ -901,7 +901,7 @@ const DietPlans = () => {
                       <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center">
                         <Upload className="h-8 w-8 text-blue-600" />
                       </div>
-                      <div>
+                  <div>
                         <Button
                           onClick={triggerFileUpload}
                           disabled={uploading}
@@ -920,7 +920,7 @@ const DietPlans = () => {
                           className="hidden"
                           disabled={uploading}
                         />
-                      </div>
+                  </div>
                       
                       {/* Selected File Display */}
                       {selectedFile && (
@@ -1082,7 +1082,7 @@ const DietPlans = () => {
             <div className="flex items-center space-x-2">
               <Badge variant="outline" className="text-xs">
                 {generatedPlans.length} Available
-              </Badge>
+                    </Badge>
               <Button
                 variant="outline"
                 size="sm"
@@ -1131,11 +1131,11 @@ const DietPlans = () => {
                 <Plus className="h-4 w-4 mr-2" />
                 Generate My AI Plan
               </Button>
-            </div>
-          </div>
+                  </div>
+                </div>
           
 
-        </CardHeader>
+              </CardHeader>
         <CardContent className="p-0">
           {/* AI Plan Generation Form */}
           {showPlanForm && (
@@ -1153,7 +1153,7 @@ const DietPlans = () => {
                 >
                   <X className="h-4 w-4" />
                 </Button>
-              </div>
+                  </div>
               <p className="text-gray-600 mb-6">Tell us about your goals and preferences to generate a personalized plan</p>
               
               <div className="space-y-6">
@@ -1358,8 +1358,8 @@ const DietPlans = () => {
                                   className="text-blue-600 hover:text-blue-700"
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
-                                  View Details
-                                </Button>
+                      View Details
+                    </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -1402,9 +1402,9 @@ const DietPlans = () => {
                                 >
                                   <X className="h-4 w-4 mr-1" />
                                   Deactivate
-                                </Button>
-                              </div>
-                            </div>
+                    </Button>
+                  </div>
+                </div>
                             
                             {/* Plan Details */}
                             {plan.plan_content && (
@@ -1470,7 +1470,7 @@ const DietPlans = () => {
                                                           <li className="text-gray-500 italic">+{meal.ingredients.length - 5} more</li>
                                                         )}
                                                       </ul>
-                                                    </div>
+        </div>
                                                   )}
                                                   
                                                   {meal.instructions && (
@@ -1479,7 +1479,7 @@ const DietPlans = () => {
                                                       <p className="text-xs text-gray-600 mt-1 line-clamp-3">
                                                         {meal.instructions}
                                                       </p>
-                                                    </div>
+      </div>
                                                   )}
                                                   
                                                   {meal.macros && (
@@ -1508,7 +1508,7 @@ const DietPlans = () => {
                                     </div>
                                   </div>
                                 ) : plan.plan_content.meals && plan.plan_content.meals.length > 0 ? (
-                                  <div>
+      <div>
                                     <p className="text-sm font-medium text-gray-700 mb-2">Sample Meals:</p>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                       {plan.plan_content.meals.slice(0, 4).map((meal: any, index: number) => (
@@ -1547,7 +1547,7 @@ const DietPlans = () => {
                           </div>
                         </TooltipTrigger>
                         <TooltipContent className="max-w-md p-4">
-                          <div className="space-y-3">
+                <div className="space-y-3">
                             <div>
                               <h4 className="font-semibold text-gray-900 mb-2">{plan.title}</h4>
                               <p className="text-sm text-gray-600 mb-3">{plan.description}</p>
@@ -1555,7 +1555,7 @@ const DietPlans = () => {
                                 <span>📅 {plan.duration}</span>
                                 <span>🔥 {plan.calories} cal/day</span>
                                 <span>📊 {plan.plan_content?.dailyMeals?.length * 4 || 0} meals</span>
-                              </div>
+                  </div>
                             </div>
                             
                             {plan.plan_content?.dailyMeals && plan.plan_content.dailyMeals.length > 0 && (
@@ -2065,7 +2065,7 @@ const DietPlans = () => {
       {myActivePlans.length > 0 && (
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
               <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
                 <Activity className="h-5 w-5 mr-3 text-blue-600" />
                 My Active Plans
@@ -2101,15 +2101,15 @@ const DietPlans = () => {
                       </div>
                       
                       <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                        <div className="flex items-center space-x-1">
+                    <div className="flex items-center space-x-1">
                           <Calendar className="h-4 w-4" />
                           <span>{plan.duration}</span>
-                        </div>
+                    </div>
                         <span>•</span>
                         <span>{plan.calories} calories</span>
                         <span>•</span>
                         <span className="text-blue-600 font-medium">{plan.category}</span>
-                      </div>
+                    </div>
 
                       <p className="text-gray-600 mb-3">{plan.description}</p>
 
@@ -2118,7 +2118,7 @@ const DietPlans = () => {
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Progress</span>
                           <span className="text-gray-900 font-medium">{plan.progress}%</span>
-                        </div>
+                  </div>
                         <Progress value={plan.progress} className="h-2" />
                       </div>
                     </div>
@@ -2159,16 +2159,16 @@ const DietPlans = () => {
                 }}
                 className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg"
               >
-                <Sparkles className="h-4 w-4 mr-2" />
+                    <Sparkles className="h-4 w-4 mr-2" />
                 Generate My AI Plan
               </Button>
               <Button variant="outline" className="border-gray-300 hover:bg-gray-50">
                 Learn More
-              </Button>
+                  </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+                </div>
+              </CardContent>
+            </Card>
 
       {/* Plan Details Modal */}
       <Dialog open={showPlanDetails} onOpenChange={setShowPlanDetails}>
@@ -2178,11 +2178,11 @@ const DietPlans = () => {
               <div className="flex items-center space-x-3">
                 <div className="h-10 w-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
                   <Calendar className="h-6 w-6 text-white" />
-                </div>
+        </div>
                 <div>
                   <div className="text-2xl font-bold text-gray-900">
                     {selectedPlan?.title || "AI Plan Details"}
-                  </div>
+      </div>
                 </div>
               </div>
             </DialogTitle>
@@ -2241,7 +2241,7 @@ const DietPlans = () => {
               >
                 <Download className="h-4 w-4 mr-1" />
                 Export Calendar
-              </Button>
+            </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -2277,7 +2277,7 @@ const DietPlans = () => {
               >
                 <Trash2 className="h-4 w-4 mr-1" />
                 Clear All Plans
-              </Button>
+            </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -2350,8 +2350,8 @@ const DietPlans = () => {
               >
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Regenerate Plan
-              </Button>
-            </div>
+            </Button>
+          </div>
           </div>
 
           {/* Calendar View */}

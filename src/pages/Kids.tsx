@@ -23,22 +23,38 @@ const Kids: React.FC = () => {
 
       {/* Main Content */}
       <Tabs defaultValue="recipes" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4">
-          <TabsTrigger value="recipes" className="flex items-center gap-2">
-            <ChefHat className="h-4 w-4" />
-            Recipes
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-gray-100 rounded-lg">
+          <TabsTrigger 
+            value="recipes" 
+            className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-3 py-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 hover:bg-white hover:shadow-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-orange-600"
+          >
+            <ChefHat className="h-4 w-4 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Recipes</span>
+            <span className="sm:hidden">Recipes</span>
           </TabsTrigger>
-          <TabsTrigger value="nutrition" className="flex items-center gap-2">
-            <Heart className="h-4 w-4" />
-            Nutrition
+          <TabsTrigger 
+            value="nutrition" 
+            className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-3 py-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 hover:bg-white hover:shadow-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-red-600"
+          >
+            <Heart className="h-4 w-4 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Nutrition</span>
+            <span className="sm:hidden">Nutrition</span>
           </TabsTrigger>
-          <TabsTrigger value="education" className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
-            Education
+          <TabsTrigger 
+            value="education" 
+            className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-3 py-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 hover:bg-white hover:shadow-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+          >
+            <BookOpen className="h-4 w-4 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Education</span>
+            <span className="sm:hidden">Education</span>
           </TabsTrigger>
-          <TabsTrigger value="community" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Community
+          <TabsTrigger 
+            value="community" 
+            className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-3 py-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 hover:bg-white hover:shadow-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-green-600"
+          >
+            <Users className="h-4 w-4 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Community</span>
+            <span className="sm:hidden">Community</span>
           </TabsTrigger>
         </TabsList>
 

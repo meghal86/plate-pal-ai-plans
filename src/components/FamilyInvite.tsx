@@ -33,6 +33,14 @@ const FamilyInvite: React.FC = () => {
   const { user } = useUser();
   const { toast } = useToast();
   
+  // Debug authentication
+  console.log('🔐 FamilyInvite - User authentication check:', {
+    user: user,
+    userId: user?.id,
+    userEmail: user?.email,
+    isAuthenticated: !!user?.id
+  });
+  
   const [family, setFamily] = useState<Family | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [kidsProfiles, setKidsProfiles] = useState<KidsProfile[]>([]);
@@ -51,8 +59,110 @@ const FamilyInvite: React.FC = () => {
     dietary_restrictions: [] as string[],
     allergies: [] as string[],
     favorite_foods: [] as string[],
-    disliked_foods: [] as string[]
+    disliked_foods: [] as string[],
+    preferences: {
+      dietary_preferences: [] as string[],
+      allergies: [] as string[],
+      favorite_foods: [] as string[],
+      disliked_foods: [] as string[],
+      cooking_skill: 'beginner' as 'beginner' | 'intermediate' | 'advanced',
+      meal_preferences: [] as string[],
+      special_notes: ''
+    }
   });
+
+  // Helper to calculate age from birthdate
+  const calculateAge = (birthDateString: string) => {
+    if (!birthDateString) return 0;
+    const today = new Date();
+    const birthDate = new Date(birthDateString);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // Helper to handle array inputs (add/remove items)
+  const handleArrayInput = (field: keyof typeof newKid.preferences, value: string, action: 'add' | 'remove') => {
+    setNewKid(prev => ({
+      ...prev,
+      preferences: {
+        ...prev.preferences,
+        [field]: action === 'add' 
+          ? [...prev.preferences[field] as string[], value]
+          : (prev.preferences[field] as string[]).filter(item => item !== value)
+      }
+    }));
+  };
+
+  // Helper to add item to array
+  const addToArray = (field: keyof typeof newKid.preferences) => {
+    const inputId = `${field}-input`;
+    const input = document.getElementById(inputId) as HTMLInputElement;
+    if (input && input.value.trim()) {
+      handleArrayInput(field, input.value.trim(), 'add');
+      input.value = '';
+    }
+  };
+
+  // Handle Enter and Tab key press for array inputs
+  const handleKeyPress = (field: keyof typeof newKid.preferences, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const input = e.target as HTMLInputElement;
+      if (input.value.trim()) {
+        handleArrayInput(field, input.value.trim(), 'add');
+        input.value = '';
+      }
+    }
+  };
+
+  // Handle input blur (when user clicks away or tabs out)
+  const handleInputBlur = (field: keyof typeof newKid.preferences, e: React.FocusEvent<HTMLInputElement>) => {
+    const input = e.target as HTMLInputElement;
+    if (input.value.trim()) {
+      handleArrayInput(field, input.value.trim(), 'add');
+      input.value = '';
+    }
+  };
+
+  // Helper to remove item from array
+  const removeFromArray = (field: keyof typeof newKid.preferences, item: string) => {
+    handleArrayInput(field, item, 'remove');
+  };
+
+  // Reset form to initial state
+  const resetForm = () => {
+    setNewKid({
+      name: '',
+      age: 0,
+      gender: 'male',
+      birth_date: '',
+      height_cm: 0,
+      weight_kg: 0,
+      dietary_restrictions: [],
+      allergies: [],
+      favorite_foods: [],
+      disliked_foods: [],
+      preferences: {
+        dietary_preferences: [],
+        allergies: [],
+        favorite_foods: [],
+        disliked_foods: [],
+        cooking_skill: 'beginner',
+        meal_preferences: [],
+        special_notes: ''
+      }
+    });
+  };
+
+  // Open add kid dialog and reset form
+  const openAddKidDialog = () => {
+    resetForm();
+    setShowAddKidDialog(true);
+  };
 
   // Load family data
   useEffect(() => {
@@ -65,12 +175,22 @@ const FamilyInvite: React.FC = () => {
     try {
       setLoading(true);
       
+      console.log('🔍 Loading family data for user:', user?.id);
+      console.log('🔍 User object:', user);
+      
+      if (!user?.id) {
+        console.log('❌ No user ID found');
+        return;
+      }
+      
       // Get user's family
-      const { data: userProfile } = await supabase
+      const { data: userProfile, error: userProfileError } = await supabase
         .from('user_profiles')
         .select('family_id')
         .eq('user_id', user?.id)
         .single();
+
+      console.log('🔍 User profile result:', { userProfile, userProfileError });
 
       if (userProfile?.family_id) {
         // Get family details
@@ -142,6 +262,21 @@ const FamilyInvite: React.FC = () => {
         familyId = newFamily.id;
         setFamily(newFamily);
 
+        // Add user as a family member with 'accepted' status
+        const { error: memberError } = await supabase
+          .from('family_members')
+          .insert({
+            family_id: familyId,
+            user_id: user.id,
+            role: 'parent',
+            status: 'accepted',
+            invited_by: user.id,
+            invited_at: new Date().toISOString(),
+            accepted_at: new Date().toISOString()
+          });
+
+        if (memberError) throw memberError;
+
         // Update user profile with family_id
         await supabase
           .from('user_profiles')
@@ -175,10 +310,17 @@ const FamilyInvite: React.FC = () => {
   const addKid = async () => {
     if (!newKid.name || !user?.id) return;
 
+    console.log('🚀 Starting addKid function');
+    console.log('👤 User:', user);
+    console.log('👶 New kid data:', newKid);
+
     try {
       // Get or create family for current user
       let familyId = family?.id;
+      console.log('🏠 Current family ID:', familyId);
+      
       if (!familyId) {
+        console.log('🏠 Creating new family...');
         // Create a new family
         const { data: newFamily, error: familyError } = await supabase
           .from('families')
@@ -189,9 +331,29 @@ const FamilyInvite: React.FC = () => {
           .select()
           .single();
 
+        console.log('🏠 Family creation result:', { newFamily, familyError });
+
         if (familyError) throw familyError;
         familyId = newFamily.id;
         setFamily(newFamily);
+
+        console.log('👥 Adding user as family member...');
+        // Add user as a family member with 'accepted' status
+        const { error: memberError } = await supabase
+          .from('family_members')
+          .insert({
+            family_id: familyId,
+            user_id: user.id,
+            role: 'parent',
+            status: 'accepted',
+            invited_by: user.id,
+            invited_at: new Date().toISOString(),
+            accepted_at: new Date().toISOString()
+          });
+
+        console.log('👥 Member creation result:', { memberError });
+
+        if (memberError) throw memberError;
 
         // Update user profile with family_id
         await supabase
@@ -200,25 +362,29 @@ const FamilyInvite: React.FC = () => {
           .eq('user_id', user.id);
       }
 
+      console.log('👶 Creating kid profile...');
       // Add kid profile
       const { data: newKidProfile, error: kidError } = await supabase
         .from('kids_profiles')
         .insert({
           family_id: familyId,
           name: newKid.name,
-          age: newKid.age,
+          age: calculateAge(newKid.birth_date), // Use calculated age
           gender: newKid.gender,
           birth_date: newKid.birth_date || null,
           height_cm: newKid.height_cm || null,
           weight_kg: newKid.weight_kg || null,
-          dietary_restrictions: newKid.dietary_restrictions,
-          allergies: newKid.allergies,
-          favorite_foods: newKid.favorite_foods,
-          disliked_foods: newKid.disliked_foods,
-          created_by: user.id
+          dietary_restrictions: newKid.preferences.dietary_preferences,
+          allergies: newKid.preferences.allergies,
+          favorite_foods: newKid.preferences.favorite_foods,
+          disliked_foods: newKid.preferences.disliked_foods,
+          created_by: user.id,
+          preferences: newKid.preferences // Save structured preferences
         })
         .select()
         .single();
+
+      console.log('👶 Kid creation result:', { newKidProfile, kidError });
 
       if (kidError) throw kidError;
 
@@ -227,28 +393,23 @@ const FamilyInvite: React.FC = () => {
         description: `Added ${newKid.name} to your family`,
       });
       
-      setNewKid({
-        name: '',
-        age: 0,
-        gender: 'male',
-        birth_date: '',
-        height_cm: 0,
-        weight_kg: 0,
-        dietary_restrictions: [],
-        allergies: [],
-        favorite_foods: [],
-        disliked_foods: []
-      });
+      resetForm();
       setShowAddKidDialog(false);
       
       // Reload family data
       await loadFamilyData();
       
     } catch (error) {
-      console.error('Error adding kid:', error);
+      console.error('❌ Error adding kid:', error);
+      console.error('❌ Error details:', {
+        error,
+        newKid,
+        familyId: family?.id,
+        userId: user?.id
+      });
       toast({
         title: "Error",
-        description: "Failed to add kid",
+        description: error instanceof Error ? error.message : "Failed to add kid",
         variant: "destructive"
       });
     }
@@ -387,68 +548,289 @@ const FamilyInvite: React.FC = () => {
         <CardContent>
           <div className="space-y-4">
             {/* Add Kid Button */}
-            <Dialog open={showAddKidDialog} onOpenChange={setShowAddKidDialog}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Kid Profile
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Add Kid Profile</DialogTitle>
-                  <DialogDescription>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={openAddKidDialog}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Kid Profile
+            </Button>
+            
+            <Dialog open={showAddKidDialog} onOpenChange={(open) => {
+              setShowAddKidDialog(open);
+              if (!open) {
+                resetForm();
+              }
+            }}>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto sm:max-w-2xl w-[95vw] sm:w-auto mx-auto sm:mx-0">
+                <DialogHeader className="pb-4">
+                  <DialogTitle className="text-xl sm:text-lg">Add Kid Profile</DialogTitle>
+                  <DialogDescription className="text-sm">
                     Create a profile for your child to track their nutrition and growth
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                      id="name"
-                      value={newKid.name}
-                      onChange={(e) => setNewKid({ ...newKid, name: e.target.value })}
-                      placeholder="Child's name"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Basic Information Section */}
+                  <div className="space-y-3 sm:space-y-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 border-b pb-2">Basic Information</h3>
+                    
                     <div>
-                      <Label htmlFor="age">Age</Label>
+                      <Label htmlFor="name" className="text-sm sm:text-base">Name</Label>
                       <Input
-                        id="age"
-                        type="number"
-                        value={newKid.age}
-                        onChange={(e) => setNewKid({ ...newKid, age: parseInt(e.target.value) || 0 })}
-                        placeholder="Age"
+                        id="name"
+                        value={newKid.name}
+                        onChange={(e) => setNewKid({ ...newKid, name: e.target.value })}
+                        placeholder="Child's name"
+                        className="h-10 sm:h-9"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="gender">Gender</Label>
-                      <Select value={newKid.gender} onValueChange={(value: any) => setNewKid({ ...newKid, gender: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div>
+                        <Label htmlFor="gender" className="text-sm sm:text-base">Gender</Label>
+                        <Select value={newKid.gender} onValueChange={(value: any) => setNewKid({ ...newKid, gender: value })}>
+                          <SelectTrigger className="h-10 sm:h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="birth_date" className="text-sm sm:text-base">Birth Date</Label>
+                        <Input
+                          id="birth_date"
+                          type="date"
+                          value={newKid.birth_date}
+                          onChange={(e) => {
+                            const birth_date = e.target.value;
+                            setNewKid({
+                              ...newKid,
+                              birth_date,
+                              age: calculateAge(birth_date)
+                            });
+                          }}
+                          className="h-10 sm:h-9"
+                        />
+                        {newKid.birth_date && (
+                          <div className="text-xs sm:text-sm text-gray-500 mt-1">
+                            Age: <span className="font-semibold">{calculateAge(newKid.birth_date)}</span> years
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="birth_date">Birth Date</Label>
-                    <Input
-                      id="birth_date"
-                      type="date"
-                      value={newKid.birth_date}
-                      onChange={(e) => setNewKid({ ...newKid, birth_date: e.target.value })}
-                    />
+
+                  {/* Preferences Section */}
+                  <div className="space-y-3 sm:space-y-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 border-b pb-2">Preferences & Dietary Information</h3>
+                    
+                    {/* Dietary Preferences */}
+                    <div>
+                      <Label className="text-sm sm:text-base">Dietary Preferences</Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                        {['Vegetarian', 'Vegan', 'Gluten-Free', 'Dairy-Free', 'Nut-Free', 'Halal', 'Kosher'].map(pref => (
+                          <label key={pref} className="flex items-center space-x-2 p-2 rounded hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={newKid.preferences.dietary_preferences.includes(pref)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  handleArrayInput('dietary_preferences', pref, 'add');
+                                } else {
+                                  removeFromArray('dietary_preferences', pref);
+                                }
+                              }}
+                              className="rounded h-4 w-4"
+                            />
+                            <span className="text-sm">{pref}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Allergies and Foods - Stack on mobile */}
+                    <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4">
+                      {/* Allergies */}
+                      <div>
+                        <Label className="text-sm sm:text-base">Allergies</Label>
+                        <div className="flex gap-2 mt-2">
+                          <Input
+                            id="allergies-input"
+                            placeholder="Type allergy and press Enter/Tab (e.g., Peanuts)"
+                            className="flex-1 h-10 sm:h-9"
+                            onKeyPress={(e) => handleKeyPress('allergies', e)}
+                            onBlur={(e) => handleInputBlur('allergies', e)}
+                          />
+                          <Button 
+                            type="button" 
+                            onClick={() => addToArray('allergies')} 
+                            size="sm" 
+                            className="h-10 sm:h-9 px-3 sm:hidden"
+                            variant="outline"
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        {newKid.preferences.allergies.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {newKid.preferences.allergies.map(allergy => (
+                              <Badge key={allergy} variant="secondary" className="cursor-pointer text-xs px-2 py-1" onClick={() => removeFromArray('allergies', allergy)}>
+                                {allergy} ×
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Favorite Foods */}
+                      <div>
+                        <Label className="text-sm sm:text-base">Favorite Foods</Label>
+                        <div className="flex gap-2 mt-2">
+                          <Input
+                            id="favorite_foods-input"
+                            placeholder="Type favorite food and press Enter/Tab (e.g., Pizza)"
+                            className="flex-1 h-10 sm:h-9"
+                            onKeyPress={(e) => handleKeyPress('favorite_foods', e)}
+                            onBlur={(e) => handleInputBlur('favorite_foods', e)}
+                          />
+                          <Button 
+                            type="button" 
+                            onClick={() => addToArray('favorite_foods')} 
+                            size="sm" 
+                            className="h-10 sm:h-9 px-3 sm:hidden"
+                            variant="outline"
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        {newKid.preferences.favorite_foods.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {newKid.preferences.favorite_foods.map(food => (
+                              <Badge key={food} variant="outline" className="cursor-pointer text-xs px-2 py-1" onClick={() => removeFromArray('favorite_foods', food)}>
+                                {food} ×
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Disliked Foods */}
+                    <div>
+                      <Label className="text-sm sm:text-base">Disliked Foods</Label>
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          id="disliked_foods-input"
+                          placeholder="Type disliked food and press Enter/Tab (e.g., Broccoli)"
+                          className="flex-1 h-10 sm:h-9"
+                          onKeyPress={(e) => handleKeyPress('disliked_foods', e)}
+                          onBlur={(e) => handleInputBlur('disliked_foods', e)}
+                        />
+                        <Button 
+                          type="button" 
+                          onClick={() => addToArray('disliked_foods')} 
+                          size="sm" 
+                          className="h-10 sm:h-9 px-3 sm:hidden"
+                          variant="outline"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      {newKid.preferences.disliked_foods.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {newKid.preferences.disliked_foods.map(food => (
+                            <Badge key={food} variant="destructive" className="cursor-pointer text-xs px-2 py-1" onClick={() => removeFromArray('disliked_foods', food)}>
+                              {food} ×
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cooking Skill and Meal Preferences - Stack on mobile */}
+                    <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4">
+                      {/* Cooking Skill Level */}
+                      <div>
+                        <Label className="text-sm sm:text-base">Cooking Skill Level</Label>
+                        <Select 
+                          value={newKid.preferences.cooking_skill} 
+                          onValueChange={(value: 'beginner' | 'intermediate' | 'advanced') => 
+                            setNewKid(prev => ({
+                              ...prev,
+                              preferences: { ...prev.preferences, cooking_skill: value }
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="h-10 sm:h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="beginner">Beginner (needs help)</SelectItem>
+                            <SelectItem value="intermediate">Intermediate (some independence)</SelectItem>
+                            <SelectItem value="advanced">Advanced (can cook independently)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Meal Preferences */}
+                      <div>
+                        <Label className="text-sm sm:text-base">Meal Preferences</Label>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {['Breakfast', 'Lunch', 'Dinner', 'Snacks'].map(meal => (
+                            <label key={meal} className="flex items-center space-x-2 p-2 rounded hover:bg-gray-50">
+                              <input
+                                type="checkbox"
+                                checked={newKid.preferences.meal_preferences.includes(meal)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    handleArrayInput('meal_preferences', meal, 'add');
+                                  } else {
+                                    removeFromArray('meal_preferences', meal);
+                                  }
+                                }}
+                                className="rounded h-4 w-4"
+                              />
+                              <span className="text-sm">{meal}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Special Notes */}
+                    <div>
+                      <Label className="text-sm sm:text-base">Special Notes</Label>
+                      <textarea
+                        className="w-full border rounded-md p-3 min-h-[80px] sm:min-h-[60px] mt-2 text-sm"
+                        placeholder="Any additional notes about food preferences, cooking habits, or special requirements..."
+                        value={newKid.preferences.special_notes}
+                        onChange={(e) => setNewKid(prev => ({
+                          ...prev,
+                          preferences: { ...prev.preferences, special_notes: e.target.value }
+                        }))}
+                      />
+                    </div>
                   </div>
-                  <Button onClick={addKid} className="w-full">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Kid
-                  </Button>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowAddKidDialog(false)}
+                      className="flex-1 h-12 sm:h-9"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={addKid} 
+                      className="flex-1 h-12 sm:h-9"
+                      disabled={!newKid.name || !newKid.birth_date}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Kid Profile
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
@@ -466,6 +848,19 @@ const FamilyInvite: React.FC = () => {
                       <div className="text-sm text-gray-600">
                         {kid.age} years old • {kid.gender}
                       </div>
+                      {kid.preferences && typeof kid.preferences === 'object' && !Array.isArray(kid.preferences) && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {kid.preferences.dietary_preferences && Array.isArray(kid.preferences.dietary_preferences) && kid.preferences.dietary_preferences.length > 0 && (
+                            <span className="mr-2">Diet: {kid.preferences.dietary_preferences.join(', ')}</span>
+                          )}
+                          {kid.preferences.cooking_skill && typeof kid.preferences.cooking_skill === 'string' && (
+                            <span className="mr-2">• Skill: {kid.preferences.cooking_skill}</span>
+                          )}
+                          {kid.preferences.special_notes && typeof kid.preferences.special_notes === 'string' && kid.preferences.special_notes.length > 0 && (
+                            <span>• Notes: {kid.preferences.special_notes.substring(0, 50)}...</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">

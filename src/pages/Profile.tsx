@@ -162,10 +162,10 @@ const Profile = () => {
                   <Camera className="h-4 w-4" />
                 </Button>
               </div>
-              <div>
+          <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
                   {profile?.full_name || "User Profile"}
-                </h1>
+            </h1>
                 <div className="flex items-center space-x-4 text-gray-600">
                   <div className="flex items-center space-x-1">
                     <Mail className="h-4 w-4" />
@@ -480,7 +480,7 @@ const Profile = () => {
                 <Button variant="outline" className="w-full justify-start">
                   <Shield className="h-4 w-4 mr-2" />
                   Privacy Settings
-                </Button>
+            </Button>
               </CardContent>
             </Card>
 

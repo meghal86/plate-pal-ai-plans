@@ -25,9 +25,9 @@ const queryClient = new QueryClient();
 function AppContent() {
   return (
     <Router>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/dashboard" element={<Index />} />
@@ -45,7 +45,7 @@ function AppContent() {
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </TooltipProvider>
+    </TooltipProvider>
     </Router>
   );
 }
@@ -56,8 +56,8 @@ function App() {
       <UserProvider>
         <AppContent />
       </UserProvider>
-    </QueryClientProvider>
-  );
+  </QueryClientProvider>
+);
 }
 
 export default App;

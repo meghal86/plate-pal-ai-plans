@@ -192,6 +192,7 @@ export type Database = {
           height_cm: number | null
           id: string
           name: string
+          preferences: Json | null
           updated_at: string | null
           weight_kg: number | null
         }
@@ -209,6 +210,7 @@ export type Database = {
           height_cm?: number | null
           id?: string
           name: string
+          preferences?: Json | null
           updated_at?: string | null
           weight_kg?: number | null
         }
@@ -226,6 +228,7 @@ export type Database = {
           height_cm?: number | null
           id?: string
           name?: string
+          preferences?: Json | null
           updated_at?: string | null
           weight_kg?: number | null
         }
