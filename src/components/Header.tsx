@@ -86,7 +86,6 @@ const Header = ({
               Back to Dashboard
             </Button>
           )}
-          <h1 className="text-xl font-bold text-gray-800">{title}</h1>
         </div>
 
         {/* Right side - User info and actions */}
@@ -98,6 +97,17 @@ const Header = ({
               <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
                 3
               </span>
+            </Button>
+
+            {/* Logout Button - Icon Only */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleSignOut}
+              className="text-gray-600 hover:text-red-600 hover:bg-red-50 transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="h-5 w-5" />
             </Button>
 
             {/* User Menu */}
