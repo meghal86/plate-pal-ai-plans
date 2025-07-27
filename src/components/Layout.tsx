@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { 
   LayoutDashboard, 
   Utensils, 
@@ -13,6 +12,7 @@ import {
   Settings
 } from "lucide-react";
 import Header from "./Header";
+import { useUser } from "@/contexts/UserContext";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -21,50 +21,15 @@ interface LayoutProps {
 
 const Layout = ({ children, showSidebar = true }: LayoutProps) => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [userProfile, setUserProfile] = useState<{ full_name: string; member_type?: string } | null>(null);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const { profile, loading } = useUser();
 
-  // Function to fetch user profile
-  const fetchUserProfile = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const { data: profile, error } = await supabase
-          .from('user_profiles')
-          .select('full_name')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (error) {
-          console.error('Layout: Error fetching profile:', error);
-        } else if (profile) {
-          setUserProfile({
-            full_name: profile.full_name || session.user.email?.split('@')[0] || "User",
-            member_type: "Premium Member"
-          });
-        } else {
-          setUserProfile({
-            full_name: session.user.email?.split('@')[0] || "User",
-            member_type: "Premium Member"
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Layout: Error in fetchUserProfile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch user profile on component mount
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
+  // Get user profile from context
+  const userProfile = profile ? {
+    full_name: profile.full_name || "User",
+    member_type: "Premium Member"
+  } : null;
 
   // Update active tab based on current location
   useEffect(() => {

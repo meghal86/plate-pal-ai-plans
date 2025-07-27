@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -28,7 +28,7 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-export function useUser() {
+function useUser() {
   const context = useContext(UserContext);
   if (context === undefined) {
     throw new Error('useUser must be used within a UserProvider');
@@ -40,153 +40,109 @@ interface UserProviderProps {
   children: ReactNode;
 }
 
-export function UserProvider({ children }: UserProviderProps) {
+function UserProvider({ children }: UserProviderProps) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileLoaded, setProfileLoaded] = useState(false);
   const { toast } = useToast();
+  
+  // Use refs to prevent multiple simultaneous calls
+  const loadingRef = useRef(false);
 
-  const loadUserProfile = async (userId: string) => {
-    if (profileLoaded && profile?.user_id === userId) {
-      console.log('Profile already loaded in memory, skipping database call');
+  const createProfileFromUser = (currentUser: any): UserProfile => {
+    // Extract full_name from user metadata or email
+    let fullName = currentUser.user_metadata?.full_name;
+    if (!fullName && currentUser.email) {
+      fullName = currentUser.email.split('@')[0];
+    }
+    if (!fullName) {
+      fullName = 'User';
+    }
+
+    return {
+      user_id: currentUser.id,
+      full_name: fullName,
+      email: currentUser.email,
+      age: null,
+      weight: null,
+      height: null,
+      activity_level: 'moderate',
+      health_goals: 'General health',
+      dietary_restrictions: 'None',
+      weight_unit: 'kg'
+    };
+  };
+
+  const loadUserProfile = async (currentUser: any) => {
+    console.log('🔍 loadUserProfile called for userId:', currentUser.id);
+    
+    // Prevent multiple simultaneous calls
+    if (loadingRef.current) {
+      console.log('⚠️ Profile loading already in progress, skipping');
       return;
     }
-    console.log('Loading user profile from database for:', userId);
+
+    console.log('🚀 Loading profile for user:', currentUser.id);
+    loadingRef.current = true;
+    setLoading(true);
+    
+    // Try to load from database first (with short timeout)
     try {
-      const { data: profileData, error } = await supabase
+      console.log('📡 Querying database for existing profile...');
+      
+      // Create a promise that rejects after 3 seconds
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database query timeout')), 3000);
+      });
+      
+      // Create the database query promise
+      const queryPromise = supabase
         .from('user_profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', currentUser.id)
         .single();
       
-      if (error) {
-        if (error.code === 'PGRST116') {
-          console.log('No profile found, creating new profile for user:', userId);
-          try {
-            // Get current user data for profile creation
-            const { data: userData, error: userError } = await supabase.auth.getUser();
-            if (userError) {
-              console.error('Error getting user data:', userError);
-              return;
-            }
-            
-            const currentUser = userData.user;
-            if (!currentUser) {
-              console.error('No current user found');
-              return;
-            }
-
-            // Extract full_name from user metadata or email
-            let fullName = currentUser.user_metadata?.full_name;
-            if (!fullName && currentUser.email) {
-              fullName = currentUser.email.split('@')[0];
-            }
-            if (!fullName) {
-              fullName = 'User';
-            }
-
-            // Create new profile with fallback strategy
-            const newProfile = {
-              user_id: userId,
-              full_name: fullName,
-              email: currentUser.email,
-              age: null,
-              weight: null,
-              height: null,
-              activity_level: 'moderate',
-              health_goals: 'General health',
-              dietary_restrictions: 'None',
-              weight_unit: 'kg'
-            };
-
-            const { data: createdProfile, error: createError } = await supabase
-              .from('user_profiles')
-              .insert(newProfile)
-              .select()
-              .single();
-
-            if (createError) {
-              console.error('Error creating profile:', createError);
-              // Fallback: create minimal profile
-              const minimalProfile = {
-                user_id: userId,
-                full_name: fullName,
-                email: currentUser.email,
-                age: null,
-                weight: null,
-                height: null,
-                activity_level: null,
-                health_goals: null,
-                dietary_restrictions: null,
-                weight_unit: null
-              };
-              
-              const { data: fallbackProfile, error: fallbackError } = await supabase
-                .from('user_profiles')
-                .insert(minimalProfile)
-                .select()
-                .single();
-
-              if (fallbackError) {
-                console.error('Fallback profile creation failed:', fallbackError);
-                // Last resort: create in-memory profile
-                setProfile({
-                  user_id: userId,
-                  full_name: fullName,
-                  email: currentUser.email,
-                  age: null,
-                  weight: null,
-                  height: null,
-                  activity_level: null,
-                  health_goals: null,
-                  dietary_restrictions: null,
-                  weight_unit: null
-                });
-                setProfileLoaded(true);
-                return;
-              }
-              
-              setProfile(fallbackProfile);
-              setProfileLoaded(true);
-            } else {
-              setProfile(createdProfile);
-              setProfileLoaded(true);
-            }
-          } catch (profileCreateError) {
-            console.error('Profile creation failed:', profileCreateError);
-            toast({
-              title: "Profile Error",
-              description: "Failed to create user profile",
-              variant: "destructive"
-            });
-          }
-        } else {
-          console.error('Error loading profile:', error);
-          toast({
-            title: "Profile Error",
-            description: "Failed to load user profile",
-            variant: "destructive"
-          });
-        }
-      } else {
+      // Race between timeout and query
+      const { data: profileData, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+      
+      console.log('📡 Database query result:', { profileData, error });
+      
+      if (!error && profileData) {
+        // Use real profile from database
+        console.log('✅ Found existing profile:', profileData);
         setProfile(profileData);
-        setProfileLoaded(true);
+        setLoading(false);
+      } else {
+        // No profile found or error, create from user data
+        console.log('📝 No existing profile found, creating from user data');
+        const newProfile = createProfileFromUser(currentUser);
+        console.log('✅ New profile created:', newProfile);
+        setProfile(newProfile);
+        setLoading(false);
       }
+      
     } catch (error) {
-      console.error('Error in loadUserProfile:', error);
-      toast({
-        title: "Profile Error",
-        description: "Failed to load user profile",
-        variant: "destructive"
-      });
+      console.log('⚠️ Database query failed, creating fallback profile:', error);
+      // Create fallback profile from user data
+      const fallbackProfile = createProfileFromUser(currentUser);
+      console.log('✅ Fallback profile created:', fallbackProfile);
+      setProfile(fallbackProfile);
+      setLoading(false);
+    } finally {
+      loadingRef.current = false;
     }
   };
 
   const refreshProfile = async () => {
     if (user?.id) {
-      setProfileLoaded(false);
-      await loadUserProfile(user.id);
+      console.log('🔄 Forcing profile refresh for user:', user.id);
+      // Reset loading state first
+      loadingRef.current = false;
+      setLoading(false);
+      // Wait a bit then load
+      setTimeout(() => {
+        loadUserProfile(user);
+      }, 100);
     }
   };
 
@@ -224,49 +180,45 @@ export function UserProvider({ children }: UserProviderProps) {
   };
 
   useEffect(() => {
-    const loadingTimeout = setTimeout(() => {
-      setLoading(false);
-    }, 10000);
+    console.log('🔄 UserContext useEffect started');
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user);
-          setProfileLoaded(false);
-          await loadUserProfile(session.user.id);
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setProfile(null);
-          setProfileLoaded(false);
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          setUser(session.user);
+        console.log('🔄 Auth state change:', event, session?.user?.id);
+        
+        try {
+          if (event === 'SIGNED_IN' && session?.user) {
+            console.log('✅ User signed in, loading profile once');
+            setUser(session.user);
+            await loadUserProfile(session.user);
+          } else if (event === 'SIGNED_OUT') {
+            console.log('🚪 User signed out, clearing profile');
+            setUser(null);
+            setProfile(null);
+          } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+            console.log('🔄 Token refreshed, updating user');
+            setUser(session.user);
+          } else if (event === 'INITIAL_SESSION') {
+            console.log('🔄 Initial session event:', session?.user?.id ? 'User found' : 'No user');
+            if (session?.user) {
+              setUser(session.user);
+              await loadUserProfile(session.user);
+            } else {
+              setUser(null);
+              setProfile(null);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error in auth state change:', error);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
-        clearTimeout(loadingTimeout);
       }
     );
 
-    const getInitialSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUser(session.user);
-          setProfileLoaded(false);
-          await loadUserProfile(session.user.id);
-        }
-      } catch (error) {
-        console.error('Error getting initial session:', error);
-      } finally {
-        setLoading(false);
-        clearTimeout(loadingTimeout);
-      }
-    };
-
-    getInitialSession();
-
     return () => {
+      console.log('🧹 UserContext cleanup');
       subscription.unsubscribe();
-      clearTimeout(loadingTimeout);
     };
   }, []);
 
@@ -283,4 +235,6 @@ export function UserProvider({ children }: UserProviderProps) {
       {children}
     </UserContext.Provider>
   );
-} 
+};
+
+export { useUser, UserProvider }; 

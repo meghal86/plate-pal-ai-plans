@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,29 +17,17 @@ import {
   Heart
 } from "lucide-react";
 import Layout from "@/components/Layout";
-
-interface UserProfile {
-  id: string;
-  full_name: string;
-  email: string;
-  age: number | null;
-  weight: number | null;
-  height: number | null;
-  activity_level: string;
-  health_goals: string;
-  dietary_restrictions: string;
-  weight_unit: string;
-  created_at: string;
-}
+import { useUser } from "@/contexts/UserContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const Profile = () => {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [editingProfile, setEditingProfile] = useState<any>(null);
   const navigate = useNavigate();
+  const { profile, loading, updateProfile } = useUser();
 
   // Get user's language preference
   const isHindi = navigator.language?.startsWith('hi') || false;
@@ -63,117 +50,22 @@ const Profile = () => {
     { value: "very-active", label: isHindi ? "बहुत सक्रिय (दिन में 2 बार, तीव्र)" : "Very Active (2x/day, intense)" }
   ];
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        navigate("/signin");
-        return;
-      }
-
-      console.log('Fetching profile for user:', user.id);
-      
-      // Fetch user profile from database
-      const { data: profileData, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      console.log('Profile fetch result:', { profileData, error });
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
-        console.error('Error fetching profile:', error);
-        setError(isHindi ? "प्रोफ़ाइल लोड करने में त्रुटि" : "Error loading profile");
-      }
-
-      if (profileData) {
-        setProfile(profileData);
-      } else {
-        // Create default profile if none exists
-        const defaultProfile: UserProfile = {
-          id: "", // Let database generate the UUID
-          full_name: user.user_metadata?.full_name || "",
-          email: user.email || "",
-          age: null,
-          weight: null,
-          height: null,
-          activity_level: "moderate",
-          health_goals: "",
-          dietary_restrictions: "",
-          weight_unit: "kg",
-          created_at: new Date().toISOString()
-        };
-        setProfile(defaultProfile);
-      }
-    } catch (err) {
-      console.error('Error:', err);
-      setError(isHindi ? "प्रोफ़ाइल लोड करने में त्रुटि" : "Error loading profile");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Initialize editing profile when profile loads
+  if (profile && !editingProfile) {
+    setEditingProfile(profile);
+  }
 
   const handleSave = async () => {
-    if (!profile) return;
+    if (!editingProfile) return;
 
     setSaving(true);
     setError("");
     setSuccess("");
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        navigate("/signin");
-        return;
-      }
-
-      // Update or insert profile
-      const upsertData: any = {
-        user_id: user.id,
-        full_name: profile.full_name,
-        email: profile.email,
-        age: profile.age,
-        weight: profile.weight,
-        height: profile.height,
-        activity_level: profile.activity_level,
-        health_goals: profile.health_goals,
-        dietary_restrictions: profile.dietary_restrictions,
-        weight_unit: profile.weight_unit
-      };
-
-      // Only include id if it exists (for existing profiles)
-      if (profile.id) {
-        upsertData.id = profile.id;
-      }
-
-      console.log('Upserting profile data:', upsertData);
-      
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .upsert(upsertData)
-        .select()
-        .single();
-
-      console.log('Upsert result:', { data, error });
-
-      if (error) {
-        console.error('Profile update error:', error);
-        setError(error.message);
-      } else {
-        // Update the profile state with the returned data (including the generated id)
-        if (data) {
-          setProfile(data);
-        }
-        setSuccess(isHindi ? "प्रोफ़ाइल सफलतापूर्वक अपडेट किया गया" : "Profile updated successfully");
-        setIsEditing(false);
-      }
+      await updateProfile(editingProfile);
+      setSuccess(isHindi ? "प्रोफ़ाइल सफलतापूर्वक अपडेट किया गया" : "Profile updated successfully");
+      setIsEditing(false);
     } catch (err) {
       setError(isHindi ? "प्रोफ़ाइल अपडेट करने में त्रुटि" : "Error updating profile");
     } finally {
@@ -184,309 +76,292 @@ const Profile = () => {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      navigate("/signin");
+      navigate("/");
     } catch (err) {
       setError(isHindi ? "लॉगआउट में त्रुटि" : "Error during logout");
     }
   };
 
-  const handleInputChange = (field: keyof UserProfile, value: string | number | null) => {
-    if (!profile) return;
-    setProfile(prev => prev ? { ...prev, [field]: value } : null);
+  const handleInputChange = (field: string, value: string | number | null) => {
+    if (!editingProfile) return;
+    setEditingProfile(prev => prev ? { ...prev, [field]: value } : null);
   };
 
+  const handleEdit = () => {
+    setEditingProfile(profile);
+    setIsEditing(true);
+    setError("");
+    setSuccess("");
+  };
+
+  const handleCancel = () => {
+    setEditingProfile(profile);
+    setIsEditing(false);
+    setError("");
+    setSuccess("");
+  };
+
+  // Show loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-yellow-50 to-green-50">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">
-            {isHindi ? "लोड हो रहा है..." : "Loading..."}
-          </p>
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
+  // Show error if no profile
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-yellow-50 to-green-50">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">
-            {isHindi ? "प्रोफ़ाइल नहीं मिला" : "Profile not found"}
-          </p>
-          <Button onClick={() => navigate("/signin")}>
-            {isHindi ? "लॉगिन करें" : "Go to Login"}
-          </Button>
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-gray-600">Profile not found</p>
+            <Button onClick={() => navigate("/")} className="mt-4">
+              Go to Dashboard
+            </Button>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <Layout showSidebar={true}>
-      <div className="container mx-auto px-4 py-8">
-
-        {/* Success/Error Messages */}
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-            {success}
+    <Layout>
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isHindi ? "प्रोफ़ाइल" : "Profile"}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {isHindi ? "अपनी व्यक्तिगत जानकारी प्रबंधित करें" : "Manage your personal information"}
+            </p>
           </div>
-        )}
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="flex items-center space-x-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>{isHindi ? "लॉगआउट" : "Logout"}</span>
+          </Button>
+        </div>
+
+        {/* Error/Success Messages */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Profile Information */}
-          <div className="lg:col-span-2">
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-xl">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5 text-orange-500" />
-                  {isHindi ? "व्यक्तिगत जानकारी" : "Personal Information"}
-                </CardTitle>
-                {!isEditing ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-2"
-                  >
-                    <Edit3 size={16} />
-                    {isHindi ? "संपादित करें" : "Edit"}
-                  </Button>
-                ) : (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="flex items-center gap-2"
-                    >
-                      <Save size={16} />
-                      {saving ? (isHindi ? "सहेज रहा है..." : "Saving...") : (isHindi ? "सहेजें" : "Save")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsEditing(false)}
-                      className="flex items-center gap-2"
-                    >
-                      <X size={16} />
-                      {isHindi ? "रद्द करें" : "Cancel"}
-                    </Button>
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {isHindi ? "पूरा नाम" : "Full Name"}
-                    </label>
-                    {isEditing ? (
-                      <Input
-                        value={profile.full_name}
-                        onChange={(e) => handleInputChange('full_name', e.target.value)}
-                        placeholder={placeholders.name}
-                        className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                      />
-                    ) : (
-                      <p className="text-gray-900">{profile.full_name || (isHindi ? "नहीं सेट किया गया" : "Not set")}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {isHindi ? "ईमेल" : "Email"}
-                    </label>
-                    <p className="text-gray-900 flex items-center gap-2">
-                      <Mail size={16} className="text-gray-400" />
-                      {profile.email}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {isHindi ? "उम्र" : "Age"}
-                    </label>
-                    {isEditing ? (
-                      <Input
-                        type="number"
-                        value={profile.age || ""}
-                        onChange={(e) => handleInputChange('age', e.target.value ? parseInt(e.target.value) : null)}
-                        placeholder={placeholders.age}
-                        className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                      />
-                    ) : (
-                      <p className="text-gray-900">{profile.age || (isHindi ? "नहीं सेट किया गया" : "Not set")}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {isHindi ? "वजन" : "Weight"}
-                    </label>
-                    {isEditing ? (
-                      <div className="flex gap-2">
-                        <Input
-                          type="number"
-                          value={profile.weight || ""}
-                          onChange={(e) => handleInputChange('weight', e.target.value ? parseFloat(e.target.value) : null)}
-                          placeholder={placeholders.weight}
-                          className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                        />
-                        <select
-                          value={profile.weight_unit}
-                          onChange={(e) => handleInputChange('weight_unit', e.target.value)}
-                          className="border border-gray-300 rounded-md px-3 bg-white focus:border-orange-500 focus:ring-orange-500"
-                        >
-                          <option value="kg">kg</option>
-                          <option value="lbs">lbs</option>
-                        </select>
-                      </div>
-                    ) : (
-                      <p className="text-gray-900">
-                        {profile.weight ? `${profile.weight} ${profile.weight_unit}` : (isHindi ? "नहीं सेट किया गया" : "Not set")}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {isHindi ? "ऊंचाई" : "Height"}
-                    </label>
-                    {isEditing ? (
-                      <Input
-                        type="number"
-                        value={profile.height || ""}
-                        onChange={(e) => handleInputChange('height', e.target.value ? parseFloat(e.target.value) : null)}
-                        placeholder={placeholders.height}
-                        className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                      />
-                    ) : (
-                      <p className="text-gray-900">
-                        {profile.height ? `${profile.height} cm` : (isHindi ? "नहीं सेट किया गया" : "Not set")}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {isHindi ? "गतिविधि स्तर" : "Activity Level"}
-                    </label>
-                    {isEditing ? (
-                      <select
-                        value={profile.activity_level}
-                        onChange={(e) => handleInputChange('activity_level', e.target.value)}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white focus:border-orange-500 focus:ring-orange-500"
-                      >
-                        {activityLevels.map(level => (
-                          <option key={level.value} value={level.value}>
-                            {level.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-gray-900 flex items-center gap-2">
-                        <Activity size={16} className="text-gray-400" />
-                        {activityLevels.find(level => level.value === profile.activity_level)?.label}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {isHindi ? "स्वास्थ्य लक्ष्य" : "Health Goals"}
-                  </label>
-                  {isEditing ? (
-                    <Textarea
-                      value={profile.health_goals}
-                      onChange={(e) => handleInputChange('health_goals', e.target.value)}
-                      placeholder={placeholders.goals}
-                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 min-h-[80px]"
-                    />
-                  ) : (
-                    <p className="text-gray-900 flex items-start gap-2">
-                      <Target size={16} className="text-gray-400 mt-1 flex-shrink-0" />
-                      {profile.health_goals || (isHindi ? "कोई लक्ष्य निर्धारित नहीं किया गया" : "No goals set")}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {isHindi ? "आहार प्रतिबंध" : "Dietary Restrictions"}
-                  </label>
-                  {isEditing ? (
-                    <Textarea
-                      value={profile.dietary_restrictions}
-                      onChange={(e) => handleInputChange('dietary_restrictions', e.target.value)}
-                      placeholder={placeholders.restrictions}
-                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 min-h-[80px]"
-                    />
-                  ) : (
-                    <p className="text-gray-900 flex items-start gap-2">
-                      <Utensils size={16} className="text-gray-400 mt-1 flex-shrink-0" />
-                      {profile.dietary_restrictions || (isHindi ? "कोई प्रतिबंध नहीं" : "No restrictions")}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+        {success && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+            {success}
           </div>
+        )}
 
-          {/* Diet Plan Summary */}
-          <div className="lg:col-span-1">
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Heart className="w-5 h-5 text-red-500" />
-                  {isHindi ? "आहार योजना सारांश" : "Diet Plan Summary"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center p-6 bg-gradient-to-br from-orange-100 to-red-100 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600 mb-2">0</div>
-                  <div className="text-sm text-gray-600">
-                    {isHindi ? "सक्रिय योजनाएं" : "Active Plans"}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm text-gray-600">
-                      {isHindi ? "कुल योजनाएं" : "Total Plans"}
-                    </span>
-                    <span className="font-semibold">0</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm text-gray-600">
-                      {isHindi ? "पूर्ण योजनाएं" : "Completed Plans"}
-                    </span>
-                    <span className="font-semibold">0</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm text-gray-600">
-                      {isHindi ? "सफलता दर" : "Success Rate"}
-                    </span>
-                    <span className="font-semibold text-green-600">0%</span>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
-                  onClick={() => navigate("/upload")}
-                >
-                  {isHindi ? "नई योजना बनाएं" : "Create New Plan"}
+        {/* Profile Form */}
+        <Card className="bg-white/80 backdrop-blur-sm border-white/30 shadow-lg">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl">
+                {isHindi ? "व्यक्तिगत जानकारी" : "Personal Information"}
+              </CardTitle>
+              {!isEditing ? (
+                <Button onClick={handleEdit} variant="outline" className="flex items-center space-x-2">
+                  <Edit3 className="h-4 w-4" />
+                  <span>{isHindi ? "संपादित करें" : "Edit"}</span>
                 </Button>
-              </CardContent>
-            </Card>
-          </div>
+              ) : (
+                <div className="flex space-x-2">
+                  <Button onClick={handleCancel} variant="outline" className="flex items-center space-x-2">
+                    <X className="h-4 w-4" />
+                    <span>{isHindi ? "रद्द करें" : "Cancel"}</span>
+                  </Button>
+                  <Button 
+                    onClick={handleSave} 
+                    disabled={saving}
+                    className="flex items-center space-x-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{saving ? (isHindi ? "सहेज रहे हैं..." : "Saving...") : (isHindi ? "सहेजें" : "Save")}</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Basic Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {placeholders.name}
+                </label>
+                <Input
+                  value={editingProfile?.full_name || ""}
+                  onChange={(e) => handleInputChange('full_name', e.target.value)}
+                  placeholder={placeholders.name}
+                  disabled={!isEditing}
+                  className="bg-white/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {placeholders.email}
+                </label>
+                <Input
+                  value={editingProfile?.email || ""}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  placeholder={placeholders.email}
+                  disabled={!isEditing}
+                  className="bg-white/50"
+                />
+              </div>
+            </div>
+
+            {/* Physical Information */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {placeholders.age}
+                </label>
+                <Input
+                  type="number"
+                  value={editingProfile?.age || ""}
+                  onChange={(e) => handleInputChange('age', e.target.value ? parseInt(e.target.value) : null)}
+                  placeholder={placeholders.age}
+                  disabled={!isEditing}
+                  className="bg-white/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {placeholders.weight} ({editingProfile?.weight_unit || 'kg'})
+                </label>
+                <Input
+                  type="number"
+                  value={editingProfile?.weight || ""}
+                  onChange={(e) => handleInputChange('weight', e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder={placeholders.weight}
+                  disabled={!isEditing}
+                  className="bg-white/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {placeholders.height}
+                </label>
+                <Input
+                  type="number"
+                  value={editingProfile?.height || ""}
+                  onChange={(e) => handleInputChange('height', e.target.value ? parseInt(e.target.value) : null)}
+                  placeholder={placeholders.height}
+                  disabled={!isEditing}
+                  className="bg-white/50"
+                />
+              </div>
+            </div>
+
+            {/* Activity Level */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "गतिविधि स्तर" : "Activity Level"}
+              </label>
+              <select
+                value={editingProfile?.activity_level || "moderate"}
+                onChange={(e) => handleInputChange('activity_level', e.target.value)}
+                disabled={!isEditing}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white/50 disabled:bg-gray-100"
+              >
+                {activityLevels.map((level) => (
+                  <option key={level.value} value={level.value}>
+                    {level.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Health Goals */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "स्वास्थ्य लक्ष्य" : "Health Goals"}
+              </label>
+              <Textarea
+                value={editingProfile?.health_goals || ""}
+                onChange={(e) => handleInputChange('health_goals', e.target.value)}
+                placeholder={placeholders.goals}
+                disabled={!isEditing}
+                className="bg-white/50"
+                rows={3}
+              />
+            </div>
+
+            {/* Dietary Restrictions */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isHindi ? "आहार प्रतिबंध" : "Dietary Restrictions"}
+              </label>
+              <Textarea
+                value={editingProfile?.dietary_restrictions || ""}
+                onChange={(e) => handleInputChange('dietary_restrictions', e.target.value)}
+                placeholder={placeholders.restrictions}
+                disabled={!isEditing}
+                className="bg-white/50"
+                rows={3}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="bg-gradient-to-r from-orange-400 to-red-400 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="h-12 w-12 bg-white/20 rounded-full flex items-center justify-center">
+                  <Utensils className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-white/80 text-sm">Diet Plans</p>
+                  <p className="text-2xl font-bold">3 Active</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-green-400 to-blue-400 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="h-12 w-12 bg-white/20 rounded-full flex items-center justify-center">
+                  <Target className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-white/80 text-sm">Goals</p>
+                  <p className="text-2xl font-bold">5 Set</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-r from-purple-400 to-pink-400 text-white border-0 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="h-12 w-12 bg-white/20 rounded-full flex items-center justify-center">
+                  <Activity className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-white/80 text-sm">Streak</p>
+                  <p className="text-2xl font-bold">12 Days</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </Layout>

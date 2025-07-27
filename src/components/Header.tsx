@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,8 @@ import {
   Menu,
   Home
 } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
+import { useState, useRef, useEffect } from "react";
 
 interface HeaderProps {
   title?: string;
@@ -25,45 +26,31 @@ const Header = ({
   showUserInfo = true 
 }: HeaderProps) => {
   const navigate = useNavigate();
-  const [userProfile, setUserProfile] = useState<{ full_name: string } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { profile, loading, refreshProfile } = useUser();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Function to fetch user profile
-  const fetchUserProfile = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const { data: profile, error } = await supabase
-          .from('user_profiles')
-          .select('full_name')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (error) {
-          console.error('Header: Error fetching profile:', error);
-        } else if (profile) {
-          setUserProfile({
-            full_name: profile.full_name || session.user.email?.split('@')[0] || "User"
-          });
-        } else {
-          setUserProfile({
-            full_name: session.user.email?.split('@')[0] || "User"
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Header: Error in fetchUserProfile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Get user name from profile
+  const userName = profile?.full_name || "User";
+  
+  // Debug logging
+  console.log('🎯 Header render - loading:', loading, 'profile:', profile, 'userName:', userName);
 
-  // Fetch user profile on component mount
+  // Close dropdown when clicking outside
   useEffect(() => {
-    fetchUserProfile();
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        // Add small delay to allow button clicks to process first
+        setTimeout(() => {
+          setIsDropdownOpen(false);
+        }, 10);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -72,11 +59,15 @@ const Header = ({
       if (error) {
         console.error('Error signing out:', error);
       } else {
-        navigate('/signin');
+        navigate('/');
       }
     } catch (error) {
       console.error('Error signing out:', error);
     }
+  };
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
   };
 
   return (
@@ -98,51 +89,66 @@ const Header = ({
           <h1 className="text-xl font-bold text-gray-800">{title}</h1>
         </div>
 
-        {/* Right side - User actions */}
+        {/* Right side - User info and actions */}
         {showUserInfo && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {/* Notifications */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-10 h-10 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-            >
-              <Bell className="h-5 w-5" />
-            </Button>
-
-            {/* Settings */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-10 h-10 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
-
-            {/* User Profile */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/profile")}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 px-3 py-2"
-            >
-              <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-red-400 rounded-full flex items-center justify-center">
-                <User className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-sm font-medium">
-                {loading ? "Loading..." : userProfile?.full_name || "User"}
+            <Button variant="ghost" size="sm" className="relative">
+              <Bell className="h-5 w-5 text-gray-600" />
+              <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
+                3
               </span>
             </Button>
 
-            {/* Sign Out */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSignOut}
-              className="w-10 h-10 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
-            >
-              <LogOut className="h-5 w-5" />
-            </Button>
+            {/* User Menu */}
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">
+                  {loading ? "Loading..." : userName}
+                </p>
+                <p className="text-xs text-gray-500">Premium Member</p>
+              </div>
+              
+              {/* User Avatar Dropdown */}
+              <div className="relative" ref={dropdownRef}>
+                <button 
+                  onClick={toggleDropdown}
+                  className="h-8 w-8 bg-gradient-to-r from-orange-400 to-red-400 rounded-full flex items-center justify-center hover:opacity-80 transition-opacity"
+                >
+                  <User className="h-4 w-4 text-white" />
+                </button>
+                
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                    <div className="py-2">
+                      <button
+                        onClick={() => {
+                          navigate('/profile');
+                          setIsDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 transition-colors"
+                      >
+                        <User className="h-4 w-4" />
+                        Profile
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsDropdownOpen(false);
+                          await handleSignOut();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

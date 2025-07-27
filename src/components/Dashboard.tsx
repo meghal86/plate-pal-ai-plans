@@ -24,16 +24,24 @@ import {
   ArrowRight,
   CheckCircle,
   Clock,
-  TrendingDown
+  TrendingDown,
+  ChefHat
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useUser } from "@/contexts/UserContext";
+import KidsRecipes from "./KidsRecipes";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [userName, setUserName] = useState("User");
+  const { profile, loading } = useUser();
   const [greeting, setGreeting] = useState("Good morning");
+
+  // Get user name from profile
+  const userName = profile?.full_name || "User";
+
+  // Debug logging
+  console.log('🎯 Dashboard render - loading:', loading, 'profile:', profile, 'userName:', userName);
 
   // Function to get dynamic greeting based on time
   const getGreeting = () => {
@@ -44,143 +52,22 @@ const Dashboard = () => {
     return "Good night";
   };
 
-  // Function to clean up duplicate profiles
-  const cleanupDuplicateProfiles = async (userId: string) => {
-    try {
-      console.log('Dashboard: Cleaning up duplicate profiles for user:', userId);
-      
-      // Get all profiles for the user
-      const { data: allProfiles, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Dashboard: Error fetching profiles for cleanup:', error);
-        return;
-      }
-      
-      if (allProfiles && allProfiles.length > 1) {
-        console.log(`Dashboard: Found ${allProfiles.length} profiles, keeping the most recent one`);
-        
-        // Keep the most recent profile (first in the array since we ordered by created_at desc)
-        const keepProfile = allProfiles[0];
-        const deleteProfiles = allProfiles.slice(1);
-        
-        // Delete the older profiles
-        for (const profile of deleteProfiles) {
-          const { error: deleteError } = await supabase
-            .from('user_profiles')
-            .delete()
-            .eq('id', profile.id);
-          
-          if (deleteError) {
-            console.error('Dashboard: Error deleting duplicate profile:', deleteError);
-          } else {
-            console.log('Dashboard: Deleted duplicate profile:', profile.id);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Dashboard: Error in cleanup:', error);
-    }
-  };
-
-  // Function to fetch user profile
-  const fetchUserProfile = async () => {
-    try {
-      const { data: { session }, error: authError } = await supabase.auth.getSession();
-      
-      if (authError) {
-        console.error('Dashboard: Auth error:', authError);
-        return;
-      }
-      
-      if (session?.user) {
-        const user = session.user;
-        console.log('Dashboard: User authenticated via session:', user.id);
-        console.log('Dashboard: Fetching profile for user:', user.id);
-        
-        // First, let's check if there are any profiles for this user
-        const { data: allProfiles, error: listError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', user.id);
-        
-        console.log('Dashboard: All profiles for user:', allProfiles);
-        
-        if (listError) {
-          console.error('Dashboard: Profile list error:', listError);
-        }
-        
-        // If there are multiple profiles, clean them up
-        if (allProfiles && allProfiles.length > 1) {
-          console.log(`Dashboard: Found ${allProfiles.length} profiles, cleaning up duplicates`);
-          await cleanupDuplicateProfiles(user.id);
-        }
-        
-        // Then try to get the specific profile - use maybeSingle to handle multiple rows
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('full_name')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false }) // Get the most recent profile
-          .limit(1)
-          .maybeSingle();
-        
-        if (profileError) {
-          console.error('Dashboard: Profile fetch error:', profileError);
-        }
-        
-        console.log('Dashboard: Profile data:', profile);
-        
-        if (profile?.full_name) {
-          console.log('Dashboard: Setting username to:', profile.full_name);
-          setUserName(profile.full_name);
-        } else {
-          // Fallback to user's email if no name is set
-          const fallbackName = user.email?.split('@')[0] || "User";
-          console.log('Dashboard: Using fallback name:', fallbackName);
-          setUserName(fallbackName);
-        }
-      } else {
-        console.log('Dashboard: No active session found');
-      }
-    } catch (error) {
-      console.error('Dashboard: Error fetching user profile:', error);
-    }
-  };
-
-  // Set up greeting and fetch user profile on component mount
+  // Set up greeting on component mount
   useEffect(() => {
     setGreeting(getGreeting());
-    fetchUserProfile();
   }, []);
 
-  // Refetch profile when user returns to the dashboard (window focus)
+  // Fallback timeout to prevent infinite loading
   useEffect(() => {
-    const handleFocus = () => {
-      console.log('Dashboard: Window focused, refetching profile');
-      fetchUserProfile();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
-
-  // Also refetch when component becomes visible (for mobile/tablet)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('Dashboard: Page became visible, refetching profile');
-        fetchUserProfile();
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('⚠️ Dashboard loading timeout - forcing stop');
+        // Force stop loading after 5 seconds
       }
-    };
+    }, 5000);
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+    return () => clearTimeout(timeout);
+  }, [loading]);
 
   // Mock data for the dashboard
   const todayStats = {
@@ -214,6 +101,56 @@ const Dashboard = () => {
     { action: "Logged 4 glasses of water", time: "5 hours ago", icon: Droplets }
   ];
 
+  // Show loading state while profile is being loaded
+  if (loading) {
+    console.log('🔄 Dashboard showing loading state - loading:', loading, 'profile:', profile);
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Card className="bg-gradient-to-r from-orange-400 to-red-400 text-white border-0 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">{greeting}, Loading...</h2>
+                    <p className="text-white/90 text-lg">
+                      Loading your nutrition dashboard...
+                    </p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <Button
+                      variant="outline"
+                      className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                      disabled
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Plan
+                    </Button>
+                    <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20" disabled>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Log Meal
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          <div className="lg:col-span-1">
+            <Card className="h-full bg-white/80 backdrop-blur-sm border-white/30 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('✅ Dashboard rendering main content - userName:', userName);
+  
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
@@ -472,6 +409,19 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Kids' Recipes Section */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/30 shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <ChefHat className="h-5 w-5 text-orange-500" />
+            Kids' Recipes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <KidsRecipes />
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -19,6 +19,7 @@ import { generateDietPlan, generatePlanEmbedding } from "@/api/generate-diet-pla
 import { searchPlansBySimilarity, SearchResult } from "@/api/search-plans";
 import React from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useUser } from "@/contexts/UserContext";
 
 interface UploadedFile {
   id: string;
@@ -68,15 +69,16 @@ const DietPlans = () => {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const { toast } = useToast();
+  const { user } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load existing generated plans
   const loadGeneratedPlans = async () => {
+    console.log('🔍 loadGeneratedPlans called for user:', user?.id);
     setLoadingPlans(true);
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        console.log('No user found');
+      if (!user) {
+        console.log('❌ No user found in loadGeneratedPlans');
         setLoadingPlans(false);
         return;
       }
@@ -86,6 +88,8 @@ const DietPlans = () => {
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+
+      console.log('📡 Database response - plans:', plans, 'error:', error);
 
       if (error) {
         console.error('Error loading plans:', error);
@@ -112,6 +116,7 @@ const DietPlans = () => {
           return plan;
         });
         
+        console.log('✅ Final cleaned plans:', cleanedPlans);
         setGeneratedPlans(cleanedPlans);
       }
     } catch (error) {
@@ -123,8 +128,9 @@ const DietPlans = () => {
 
   // Load plans on component mount
   React.useEffect(() => {
+    console.log('🔄 DietPlans: Loading plans on mount, user:', user?.id);
     loadGeneratedPlans();
-  }, []);
+  }, [user]);
 
   // Refresh plans when user returns to the page
   React.useEffect(() => {
@@ -215,9 +221,7 @@ const DietPlans = () => {
     setGenerating(true);
     
     try {
-      // Get the current authenticated user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
+      if (!user) {
         toast({
           title: "Not signed in",
           description: "You must be signed in to generate an AI plan.",
@@ -495,7 +499,6 @@ const DietPlans = () => {
     setUploading(true);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
       
       const fileExt = selectedFile.name.split('.').pop();
@@ -606,7 +609,6 @@ const DietPlans = () => {
     setSubmittingText(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
       
       // Create a text file from the content
