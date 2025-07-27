@@ -52,12 +52,29 @@ function UserProvider({ children }: UserProviderProps) {
   const createProfileFromUser = (currentUser: any): UserProfile => {
     // Extract full_name from user metadata or email
     let fullName = currentUser.user_metadata?.full_name;
-    if (!fullName && currentUser.email) {
-      fullName = currentUser.email.split('@')[0];
+    
+    // If no full_name in metadata, try other fields
+    if (!fullName) {
+      fullName = currentUser.user_metadata?.name || 
+                 currentUser.user_metadata?.display_name ||
+                 currentUser.user_metadata?.preferred_username;
     }
+    
+    // If still no name, use email prefix
+    if (!fullName && currentUser.email) {
+      const emailPrefix = currentUser.email.split('@')[0];
+      // Capitalize first letter and replace dots/underscores with spaces
+      fullName = emailPrefix
+        .replace(/[._]/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    // Final fallback
     if (!fullName) {
       fullName = 'User';
     }
+
+    console.log('📝 Creating profile with fullName:', fullName, 'from user:', currentUser);
 
     return {
       user_id: currentUser.id,
@@ -119,6 +136,21 @@ function UserProvider({ children }: UserProviderProps) {
         console.log('✅ New profile created:', newProfile);
         setProfile(newProfile);
         setLoading(false);
+        
+        // Try to save the profile to database for future use
+        try {
+          const { error: saveError } = await supabase
+            .from('user_profiles')
+            .insert([newProfile]);
+          
+          if (saveError) {
+            console.log('⚠️ Could not save profile to database:', saveError);
+          } else {
+            console.log('✅ Profile saved to database');
+          }
+        } catch (saveError) {
+          console.log('⚠️ Error saving profile to database:', saveError);
+        }
       }
       
     } catch (error) {

@@ -150,80 +150,68 @@ const Kids: React.FC = () => {
         </div>
 
         {/* Kids Profiles Section */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-              <Users className="h-5 w-5 text-blue-500" />
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-500" />
               Your Kids
             </h2>
-            <div className="flex items-center gap-2">
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="flex items-center gap-2"
-                onClick={refreshKidsProfiles}
-                disabled={loading}
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button size="sm" variant="outline" className="flex items-center gap-2" onClick={handleAddKid}>
-                <Plus className="h-4 w-4" />
-                Add Kid
-              </Button>
-            </div>
+            <Button size="sm" variant="outline" className="flex items-center gap-1 h-8 px-2" onClick={handleAddKid}>
+              <Plus className="h-3 w-3" />
+              <span className="text-xs">Add Kid</span>
+            </Button>
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+            <div className="flex justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
             </div>
           ) : kidsProfiles.length === 0 ? (
-            <Card className="p-8 text-center">
-              <Baby className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Kids Added Yet</h3>
-              <p className="text-gray-600 mb-4">
+            <Card className="p-6 text-center">
+              <Baby className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+              <h3 className="text-base font-medium text-gray-900 mb-2">No Kids Added Yet</h3>
+              <p className="text-sm text-gray-600 mb-3">
                 Add your kids to get personalized nutrition plans and track their growth
               </p>
-              <Button className="flex items-center gap-2" onClick={handleAddKid}>
-                <Plus className="h-4 w-4" />
+              <Button size="sm" className="flex items-center gap-2" onClick={handleAddKid}>
+                <Plus className="h-3 w-3" />
                 Add Your First Kid
               </Button>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {kidsProfiles.map((kid) => (
                 <Card 
                   key={kid.id}
                   className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
                     selectedKid?.id === kid.id 
-                      ? 'ring-2 ring-orange-500 bg-orange-50' 
-                      : 'hover:bg-gray-50'
+                      ? 'ring-2 ring-orange-500 bg-gradient-to-br from-orange-50 to-yellow-50 shadow-lg border-orange-200' 
+                      : 'hover:bg-gray-50 border-gray-200'
                   }`}
                   onClick={() => setSelectedKid(kid)}
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-12 w-12">
-                        <AvatarFallback className="bg-orange-100 text-orange-600 font-semibold">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2">
+                      <Avatar className={`h-8 w-8 ${selectedKid?.id === kid.id ? 'ring-2 ring-orange-300' : ''}`}>
+                        <AvatarFallback className={`font-semibold text-xs ${selectedKid?.id === kid.id ? 'bg-orange-200 text-orange-700' : 'bg-orange-100 text-orange-600'}`}>
                           {getKidInitials(kid.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{kid.name}</h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <span>{getKidAge(kid.birth_date)} years old</span>
+                        <h3 className={`font-medium truncate text-sm ${selectedKid?.id === kid.id ? 'text-orange-800' : 'text-gray-900'}`}>
+                          {kid.name}
+                        </h3>
+                        <div className="flex items-center gap-1 text-xs text-gray-600">
+                          <span>{getKidAge(kid.birth_date)}y</span>
                           <span>•</span>
                           <span className="capitalize">{kid.gender}</span>
                         </div>
-                        {kid.height_cm && kid.weight_kg && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {kid.height_cm}cm • {kid.weight_kg}kg
-                          </div>
-                        )}
                       </div>
                       {selectedKid?.id === kid.id && (
-                        <CheckCircle className="h-5 w-5 text-orange-500" />
+                        <div className="flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4 text-orange-500" />
+                          <span className="text-xs font-medium text-orange-600 hidden sm:inline">Active</span>
+                        </div>
                       )}
                     </div>
                   </CardContent>
@@ -232,34 +220,6 @@ const Kids: React.FC = () => {
             </div>
           )}
         </div>
-
-        {/* Selected Kid Info */}
-        {selectedKid && (
-          <Card className="bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-orange-200 text-orange-700 font-semibold">
-                      {getKidInitials(selectedKid.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{selectedKid.name}</h3>
-                    <p className="text-sm text-gray-600">
-                      {getKidAge(selectedKid.birth_date)} years old • {selectedKid.gender}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-                    Active Profile
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Main Content - Only show if a kid is selected */}
         {selectedKid ? (

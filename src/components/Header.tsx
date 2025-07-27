@@ -53,6 +53,14 @@ const Header = ({
     };
   }, []);
 
+  // Force refresh profile if username is still "User" after loading
+  useEffect(() => {
+    if (!loading && profile && profile.full_name === "User") {
+      console.log('🔄 Username is still "User", attempting to refresh profile');
+      refreshProfile();
+    }
+  }, [loading, profile, refreshProfile]);
+
   const handleSignOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
