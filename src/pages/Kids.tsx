@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Baby, ChefHat, BookOpen, Heart, Users, Calendar, Trophy, CheckCircle, Clock, Target, Lightbulb, User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Baby, ChefHat, BookOpen, Heart, Users, Calendar, Trophy, CheckCircle, Clock, Target, Lightbulb, User, Play, RefreshCw, Search } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import KidsRecipes from '@/components/KidsRecipes';
 import Layout from '@/components/Layout';
@@ -332,49 +333,434 @@ const Kids: React.FC = () => {
 
         {/* Education Tab */}
         <TabsContent value="education" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Nutrition Games */}
-            <Card>
+          {/* Learning Resources Header */}
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-bold text-gray-900">Learning Resources</h2>
+            <p className="text-gray-600">Fun and educational content about nutrition and healthy eating</p>
+          </div>
+
+          {/* Interactive Learning Modules */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Food Groups Explorer */}
+            <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-green-500" />
-                  Nutrition Games
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+                  </div>
+                  Food Groups Explorer
                 </CardTitle>
                 <CardDescription>
-                  Fun and educational games about healthy eating
+                  Learn about the five food groups and their benefits
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="text-center p-6 bg-gradient-to-r from-green-100 to-blue-100 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">Coming Soon</div>
-                    <p className="text-sm text-green-600">Interactive games to learn about nutrition</p>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { name: 'Fruits', color: 'bg-red-100', icon: '🍎', desc: 'Vitamins & Fiber' },
+                      { name: 'Vegetables', color: 'bg-green-100', icon: '🥦', desc: 'Minerals & Antioxidants' },
+                      { name: 'Grains', color: 'bg-yellow-100', icon: '🍞', desc: 'Energy & Fiber' },
+                      { name: 'Protein', color: 'bg-blue-100', icon: '🥩', desc: 'Muscle Building' },
+                      { name: 'Dairy', color: 'bg-purple-100', icon: '🥛', desc: 'Calcium & Protein' }
+                    ].map((group) => (
+                      <div key={group.name} className={`${group.color} p-3 rounded-lg text-center`}>
+                        <div className="text-2xl mb-1">{group.icon}</div>
+                        <div className="font-semibold text-sm">{group.name}</div>
+                        <div className="text-xs text-gray-600">{group.desc}</div>
+                      </div>
+                    ))}
                   </div>
+                  <Button className="w-full" variant="outline">
+                    <BookOpen className="h-4 w-4 mr-2" />
+                    Learn More
+                  </Button>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Learning Resources */}
-            <Card>
+            {/* Nutrition Quiz */}
+            <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-indigo-500" />
-                  Learning Resources
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                  </div>
+                  Nutrition Quiz
                 </CardTitle>
                 <CardDescription>
-                  Educational content about healthy eating
+                  Test your knowledge about healthy eating
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="text-center p-6 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg">
-                    <div className="text-2xl font-bold text-indigo-600">Coming Soon</div>
-                    <p className="text-sm text-indigo-600">Videos, articles, and interactive content</p>
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2">Quick Quiz:</h4>
+                    <p className="text-sm mb-3">Which food group helps build strong bones?</p>
+                    <div className="space-y-2">
+                      {[
+                        { option: 'A', text: 'Fruits', correct: false },
+                        { option: 'B', text: 'Dairy', correct: true },
+                        { option: 'C', text: 'Grains', correct: false },
+                        { option: 'D', text: 'Vegetables', correct: false }
+                      ].map((item) => (
+                        <div key={item.option} className="flex items-center space-x-2 p-2 bg-white rounded border hover:bg-blue-50 cursor-pointer">
+                          <span className="font-bold text-blue-600">{item.option}.</span>
+                          <span className="text-sm">{item.text}</span>
+                          {item.correct && <span className="ml-auto text-green-600">✓</span>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                  <Button className="w-full" variant="outline">
+                    <Target className="h-4 w-4 mr-2" />
+                    Take Full Quiz
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Healthy Habits Tracker */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                  </div>
+                  Healthy Habits
+                </CardTitle>
+                <CardDescription>
+                  Track your daily healthy eating habits
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    {[
+                      { habit: 'Drink Water', icon: '💧', progress: 80 },
+                      { habit: 'Eat Fruits', icon: '🍎', progress: 65 },
+                      { habit: 'Eat Vegetables', icon: '🥕', progress: 45 },
+                      { habit: 'Limit Sugar', icon: '🍭', progress: 90 }
+                    ].map((item) => (
+                      <div key={item.habit} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="flex items-center gap-2">
+                            <span>{item.icon}</span>
+                            <span>{item.habit}</span>
+                          </span>
+                          <span className="text-gray-600">{item.progress}%</span>
+                        </div>
+                        <Progress value={item.progress} className="h-2" />
+                      </div>
+                    ))}
+                  </div>
+                  <Button className="w-full" variant="outline">
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Update Habits
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          {/* Educational Videos & Articles */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Video Learning */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
+                  </div>
+                  Video Learning
+                </CardTitle>
+                <CardDescription>
+                  Watch fun videos about nutrition and healthy eating
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { title: 'Why Eat Your Vegetables?', duration: '3:45', thumbnail: '🥬', level: 'Beginner' },
+                    { title: 'The Power of Protein', duration: '4:20', thumbnail: '🥩', level: 'Intermediate' },
+                    { title: 'Sugar: Friend or Foe?', duration: '5:15', thumbnail: '🍭', level: 'Advanced' }
+                  ].map((video) => (
+                    <div key={video.title} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                      <div className="text-2xl">{video.thumbnail}</div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-sm">{video.title}</h4>
+                        <div className="flex items-center space-x-2 text-xs text-gray-600">
+                          <span>{video.duration}</span>
+                          <span>•</span>
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">{video.level}</span>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost">
+                        <Play className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Interactive Articles */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <div className="w-4 h-4 bg-orange-500 rounded-full"></div>
+                  </div>
+                  Interactive Articles
+                </CardTitle>
+                <CardDescription>
+                  Read and learn about nutrition with interactive elements
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { title: 'The Rainbow Plate', content: 'Learn why eating colorful foods is important for your health', readTime: '2 min', difficulty: 'Easy' },
+                    { title: 'Superfoods for Kids', content: 'Discover foods that give you super powers', readTime: '3 min', difficulty: 'Medium' },
+                    { title: 'Building a Balanced Meal', content: 'How to create the perfect plate for every meal', readTime: '4 min', difficulty: 'Hard' }
+                  ].map((article) => (
+                    <div key={article.title} className="p-4 border rounded-lg hover:shadow-md cursor-pointer transition-shadow">
+                      <h4 className="font-semibold text-sm mb-1">{article.title}</h4>
+                      <p className="text-xs text-gray-600 mb-2">{article.content}</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2 text-xs text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          <span>{article.readTime}</span>
+                          <span>•</span>
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full">{article.difficulty}</span>
+                        </div>
+                        <Button size="sm" variant="ghost">
+                          <BookOpen className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Interactive Games Section */}
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-bold text-gray-900">Fun Games</h3>
+              <p className="text-gray-600">Play and learn about healthy eating!</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Food Matching Game */}
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-pink-100 rounded-lg">
+                      <div className="w-4 h-4 bg-pink-500 rounded-full"></div>
+                    </div>
+                    Food Matching Game
+                  </CardTitle>
+                  <CardDescription>
+                    Match foods to their correct food groups
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-pink-50 to-purple-50 p-4 rounded-lg">
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { food: '🍎', group: 'Fruits', color: 'bg-red-100' },
+                          { food: '🥦', group: 'Vegetables', color: 'bg-green-100' },
+                          { food: '🥩', group: 'Protein', color: 'bg-blue-100' },
+                          { food: '🥛', group: 'Dairy', color: 'bg-purple-100' }
+                        ].map((item, index) => (
+                          <div key={index} className={`${item.color} p-3 rounded-lg text-center cursor-pointer hover:scale-105 transition-transform`}>
+                            <div className="text-2xl mb-1">{item.food}</div>
+                            <div className="text-xs font-medium">{item.group}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <Button className="w-full" variant="outline">
+                      <Target className="h-4 w-4 mr-2" />
+                      Play Full Game
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Healthy Plate Builder */}
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-teal-100 rounded-lg">
+                      <div className="w-4 h-4 bg-teal-500 rounded-full"></div>
+                    </div>
+                    Plate Builder
+                  </CardTitle>
+                  <CardDescription>
+                    Build a balanced meal on your plate
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-4 rounded-lg">
+                      <div className="relative w-32 h-32 mx-auto bg-white rounded-full border-4 border-gray-200">
+                        {/* Plate sections */}
+                        <div className="absolute inset-2 bg-green-200 rounded-full opacity-30"></div>
+                        <div className="absolute inset-4 bg-yellow-200 rounded-full opacity-30"></div>
+                        <div className="absolute inset-6 bg-red-200 rounded-full opacity-30"></div>
+                        <div className="absolute inset-8 bg-blue-200 rounded-full opacity-30"></div>
+                        <div className="absolute inset-10 bg-purple-200 rounded-full opacity-30"></div>
+                        
+                        {/* Food items on plate */}
+                        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-xl">🥦</div>
+                        <div className="absolute top-8 right-6 text-xl">🍎</div>
+                        <div className="absolute bottom-8 left-6 text-xl">🥩</div>
+                        <div className="absolute bottom-4 right-8 text-xl">🥛</div>
+                        <div className="absolute top-1/2 left-4 transform -translate-y-1/2 text-xl">🍞</div>
+                      </div>
+                      <div className="text-center mt-3">
+                        <div className="text-sm font-medium">Balanced Plate!</div>
+                        <div className="text-xs text-gray-600">All food groups included</div>
+                      </div>
+                    </div>
+                    <Button className="w-full" variant="outline">
+                      <ChefHat className="h-4 w-4 mr-2" />
+                      Build New Plate
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Memory Game */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-2 bg-indigo-100 rounded-lg">
+                    <div className="w-4 h-4 bg-indigo-500 rounded-full"></div>
+                  </div>
+                  Nutrition Memory Game
+                </CardTitle>
+                <CardDescription>
+                  Find matching pairs of healthy foods
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        '🍎', '🥦', '🥩', '🥛', '🍞', '🥕', '🍇', '🥚'
+                      ].map((food, index) => (
+                        <div key={index} className="bg-white p-3 rounded-lg text-center cursor-pointer hover:bg-blue-50 transition-colors border-2 border-transparent hover:border-blue-300">
+                          <div className="text-xl">{food}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-center mt-3">
+                      <div className="text-sm font-medium">Score: 8/8</div>
+                      <div className="text-xs text-gray-600">Perfect match!</div>
+                    </div>
+                  </div>
+                  <Button className="w-full" variant="outline">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Play Again
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Word Search */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <div className="w-4 h-4 bg-orange-500 rounded-full"></div>
+                  </div>
+                  Nutrition Word Search
+                </CardTitle>
+                <CardDescription>
+                  Find nutrition-related words in the grid
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-8 gap-1 text-center">
+                      {[
+                        'V', 'I', 'T', 'A', 'M', 'I', 'N', 'S',
+                        'E', 'G', 'E', 'T', 'A', 'B', 'L', 'E',
+                        'G', 'R', 'A', 'I', 'N', 'S', 'H', 'E',
+                        'A', 'T', 'I', 'N', 'G', 'P', 'R', 'O',
+                        'L', 'T', 'E', 'I', 'N', 'T', 'E', 'I',
+                        'T', 'H', 'A', 'L', 'T', 'H', 'Y', 'N',
+                        'H', 'Y', 'D', 'R', 'A', 'T', 'E', 'D',
+                        'S', 'U', 'G', 'A', 'R', 'F', 'R', 'E'
+                      ].map((letter, index) => (
+                        <div key={index} className="bg-white p-2 rounded text-xs font-mono cursor-pointer hover:bg-orange-100 transition-colors">
+                          {letter}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 space-y-1">
+                      <div className="text-sm font-medium">Words to find:</div>
+                      <div className="text-xs text-gray-600 space-x-2">
+                        <span className="line-through">VITAMINS</span>
+                        <span className="line-through">VEGETABLE</span>
+                        <span className="line-through">GRAINS</span>
+                        <span>PROTEIN</span>
+                        <span>HEALTHY</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button className="w-full" variant="outline">
+                    <Search className="h-4 w-4 mr-2" />
+                    New Puzzle
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Achievement System */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                Learning Achievements
+              </CardTitle>
+              <CardDescription>
+                Earn badges and rewards for your learning progress
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { name: 'Nutrition Expert', icon: '🥇', earned: true, progress: 100 },
+                  { name: 'Veggie Lover', icon: '🥬', earned: true, progress: 100 },
+                  { name: 'Water Champion', icon: '💧', earned: false, progress: 75 },
+                  { name: 'Quiz Master', icon: '🎯', earned: false, progress: 60 },
+                  { name: 'Game Champion', icon: '🎮', earned: false, progress: 40 },
+                  { name: 'Memory Master', icon: '🧠', earned: false, progress: 30 }
+                ].map((achievement) => (
+                  <div key={achievement.name} className={`text-center p-4 rounded-lg border-2 ${achievement.earned ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className="text-3xl mb-2">{achievement.icon}</div>
+                    <h4 className="font-semibold text-sm mb-1">{achievement.name}</h4>
+                    <div className="text-xs text-gray-600">
+                      {achievement.earned ? 'Earned!' : `${achievement.progress}% Complete`}
+                    </div>
+                    {!achievement.earned && (
+                      <Progress value={achievement.progress} className="h-1 mt-2" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Community Tab */}
