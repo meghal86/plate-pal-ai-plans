@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { API_CONFIG } from "@/config/api";
+import type { Database } from '@/integrations/supabase/types';
 import { 
   ChefHat, 
   Calendar, 
@@ -29,6 +30,8 @@ import {
   Sparkles,
   Eye
 } from "lucide-react";
+
+type KidsProfile = Database['public']['Tables']['kids_profiles']['Row'];
 
 // Interface for recipe data
 interface Recipe {
@@ -71,6 +74,46 @@ const ageGroups = [
   { value: "2-5", label: "2-5 years", icon: Baby },
   { value: "6-12", label: "6-12 years", icon: User }
 ];
+
+// Helper function to determine age group from age
+const getAgeGroupFromAge = (age: number): string => {
+  if (age >= 2 && age <= 5) return "2-5";
+  if (age >= 6 && age <= 12) return "6-12";
+  return "2-5"; // default fallback
+};
+
+// Helper function to calculate age from birth date
+const calculateAge = (birthDate: string): number => {
+  if (!birthDate) return 0;
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+// Helper function to extract preferences from kid profile
+const extractPreferencesFromKid = (kid: KidsProfile): KidPreferences => {
+  const age = calculateAge(kid.birth_date);
+  const ageGroup = getAgeGroupFromAge(age);
+  
+  // Extract preferences from the preferences JSON column
+  const storedPreferences = kid.preferences as any || {};
+  
+  return {
+    age_group: ageGroup,
+    dietary_restrictions: storedPreferences.dietary_preferences || [],
+    favorite_foods: storedPreferences.favorite_foods || [],
+    disliked_foods: storedPreferences.disliked_foods || [],
+    allergies: storedPreferences.allergies || [],
+    cooking_skill: storedPreferences.cooking_skill || 'beginner',
+    meal_type: 'lunch', // default
+    time_available: 'moderate' // default
+  };
+};
 
 // Mock data for initial recipes
 const mockRecipes: Recipe[] = [
@@ -151,7 +194,11 @@ const mockRecipes: Recipe[] = [
   }
 ];
 
-const KidsRecipes: React.FC = () => {
+interface KidsRecipesProps {
+  selectedChild?: KidsProfile | null;
+}
+
+const KidsRecipes: React.FC<KidsRecipesProps> = ({ selectedChild }) => {
   const { user } = useUser();
   const { toast } = useToast();
   
@@ -197,6 +244,24 @@ const KidsRecipes: React.FC = () => {
     recipeGenerated: isHindi ? "नया व्यंजन बनाया गया" : "New recipe generated",
     noRecipes: isHindi ? "कोई व्यंजन नहीं मिला" : "No recipes found"
   };
+
+  // Auto-populate preferences when selectedChild changes
+  useEffect(() => {
+    if (selectedChild) {
+      console.log('👶 Auto-populating preferences for child:', selectedChild.name);
+      const preferences = extractPreferencesFromKid(selectedChild);
+      setKidPreferences(preferences);
+      setSelectedAgeGroup(preferences.age_group);
+      
+      console.log('✅ Preferences auto-populated:', preferences);
+      
+      // Show a toast to inform user
+      toast({
+        title: "Preferences Updated",
+        description: `Loaded preferences for ${selectedChild.name} (${preferences.age_group} years)`,
+      });
+    }
+  }, [selectedChild, toast]);
 
   // Load recipes from database (commented for future Supabase integration)
   useEffect(() => {
@@ -252,51 +317,62 @@ const KidsRecipes: React.FC = () => {
       return;
     }
 
+    if (!selectedChild) {
+      toast({
+        title: placeholders.error,
+        description: "Please select a child first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setGenerating(true);
     
-    // Calculate calories based on meal type (moved outside try block for fallback access)
+    // Calculate calories based on meal type and age group
     const calorieRanges = {
-      breakfast: [300, 500],
-      lunch: [400, 600],
-      dinner: [500, 700],
-      snack: [150, 300]
+      breakfast: { "2-5": [200, 350], "6-12": [300, 500] },
+      lunch: { "2-5": [300, 450], "6-12": [400, 600] },
+      dinner: { "2-5": [400, 550], "6-12": [500, 700] },
+      snack: { "2-5": [100, 200], "6-12": [150, 300] }
     };
     
     const mealType = kidPreferences.meal_type;
-    const [minCal, maxCal] = calorieRanges[mealType as keyof typeof calorieRanges] || [400, 600];
+    const ageGroup = kidPreferences.age_group;
+    const [minCal, maxCal] = calorieRanges[mealType as keyof typeof calorieRanges]?.[ageGroup as keyof typeof calorieRanges["breakfast"]] || [400, 600];
     const calories = Math.floor(Math.random() * (maxCal - minCal + 1)) + minCal;
     
     try {
-      // Create a more personalized recipe based on preferences
+      // Create a more personalized recipe based on child's preferences
       const mealTypes = {
-        breakfast: ['Oatmeal', 'Pancakes', 'Smoothie Bowl', 'Eggs', 'Toast'],
-        lunch: ['Pizza', 'Pasta', 'Burger', 'Sandwich', 'Rice Bowl'],
-        dinner: ['Tacos', 'Stir Fry', 'Soup', 'Casserole', 'Grilled'],
-        snack: ['Smoothie', 'Trail Mix', 'Yogurt', 'Fruit', 'Crackers']
+        breakfast: ['Oatmeal', 'Pancakes', 'Smoothie Bowl', 'Eggs', 'Toast', 'Yogurt Parfait'],
+        lunch: ['Pizza', 'Pasta', 'Burger', 'Sandwich', 'Rice Bowl', 'Quesadilla'],
+        dinner: ['Tacos', 'Stir Fry', 'Soup', 'Casserole', 'Grilled Chicken', 'Pasta'],
+        snack: ['Smoothie', 'Trail Mix', 'Yogurt', 'Fruit', 'Crackers', 'Popcorn']
       };
 
       const availableMeals = mealTypes[mealType as keyof typeof mealTypes] || mealTypes.lunch;
       const randomMeal = availableMeals[Math.floor(Math.random() * availableMeals.length)];
       
-      const agePrefix = kidPreferences.age_group === '2-5' ? 'Fun Dino' : 'Rainbow';
+      // Create age-appropriate recipe name
+      const agePrefix = ageGroup === '2-5' ? 'Fun Dino' : 'Rainbow';
       const skillLevel = kidPreferences.cooking_skill;
       const timeLevel = kidPreferences.time_available;
       
-      // Adjust prep time based on time available
+      // Adjust prep time based on time available and age
       const prepTimes = {
-        quick: '10 min',
-        moderate: '20 min',
-        elaborate: '35 min'
+        quick: ageGroup === '2-5' ? '8 min' : '10 min',
+        moderate: ageGroup === '2-5' ? '15 min' : '20 min',
+        elaborate: ageGroup === '2-5' ? '25 min' : '35 min'
       };
       
-      // Adjust difficulty based on cooking skill
+      // Adjust difficulty based on cooking skill and age
       const difficulties = {
-        beginner: 'Easy',
+        beginner: ageGroup === '2-5' ? 'Very Easy' : 'Easy',
         intermediate: 'Medium',
         advanced: 'Advanced'
       };
       
-      // Create personalized ingredients based on preferences
+      // Create personalized ingredients based on child's preferences
       const baseIngredients = [
         "Whole grain bread",
         "Fresh vegetables",
@@ -304,20 +380,29 @@ const KidsRecipes: React.FC = () => {
         "Healthy fats"
       ];
       
-      // Add favorite foods if available
-      const favoriteIngredients = kidPreferences.favorite_foods.slice(0, 2);
-      const allIngredients = [...baseIngredients, ...favoriteIngredients];
+      // Add favorite foods if available (prioritize them)
+      const favoriteIngredients = kidPreferences.favorite_foods.slice(0, 3);
+      const allIngredients = [...favoriteIngredients, ...baseIngredients];
       
-      // Filter out disliked foods
-      const filteredIngredients = allIngredients.filter(
-        ingredient => !kidPreferences.disliked_foods.some(
-          disliked => ingredient.toLowerCase().includes(disliked.toLowerCase())
-        )
-      );
+      // Filter out disliked foods and allergies
+      const filteredIngredients = allIngredients.filter(ingredient => {
+        const lowerIngredient = ingredient.toLowerCase();
+        return !kidPreferences.disliked_foods.some(
+          disliked => lowerIngredient.includes(disliked.toLowerCase())
+        ) && !kidPreferences.allergies.some(
+          allergy => lowerIngredient.includes(allergy.toLowerCase())
+        );
+      });
+      
+      // Add dietary restrictions consideration
+      const dietaryInfo = kidPreferences.dietary_restrictions.length > 0 
+        ? ` (${kidPreferences.dietary_restrictions.join(', ')})` 
+        : '';
       
       const mockRecipe = {
-        name: `${agePrefix} ${randomMeal}`,
+        name: `${agePrefix} ${randomMeal}${dietaryInfo}`,
         subtitle: `${skillLevel} level, ${timeLevel} prep - ${calories} calories`,
+        age_group: ageGroup,
         calories: calories,
         prep_time: prepTimes[timeLevel as keyof typeof prepTimes],
         difficulty: difficulties[skillLevel as keyof typeof difficulties],
@@ -333,7 +418,7 @@ const KidsRecipes: React.FC = () => {
           carbs: Math.floor(calories * 0.55 / 4),   // 55% of calories from carbs
           fat: Math.floor(calories * 0.30 / 9),     // 30% of calories from fat
           fiber: Math.floor(calories * 0.03),       // 3% fiber
-          sugar: Math.floor(calories * 0.08)        // 8% sugar
+          sugar: Math.floor(calories * 0.10 / 4)    // 10% sugar
         },
         dietary_preferences: kidPreferences.dietary_restrictions,
         allergens: kidPreferences.allergies
@@ -537,13 +622,48 @@ Format the response as JSON with the following structure:
 
   // Save recipe to calendar
   const saveToCalendar = async (recipe: Recipe) => {
+    if (!user?.id || !selectedChild) {
+      toast({
+        title: placeholders.error,
+        description: "Please select a child first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setSaving(true);
     try {
-      // TODO: Implement calendar integration
-      // For now, just show success message
+      // Create enhanced recipe data for professional calendar
+      const savedRecipe = {
+        id: Date.now().toString(),
+        recipe_id: recipe.id,
+        user_id: user.id,
+        kid_id: selectedChild.id,
+        scheduled_date: new Date().toISOString().split('T')[0], // Today's date
+        meal_type: kidPreferences.meal_type,
+        is_premium: Math.random() > 0.5, // Random premium indicator for demo
+        rating: (4.0 + Math.random() * 1.0).toFixed(1), // Random rating between 4.0-5.0
+        views: Math.floor(Math.random() * 2000) + 100, // Random views
+        recipe_data: {
+          name: recipe.name,
+          calories: recipe.calories,
+          prep_time: recipe.prep_time,
+          difficulty: recipe.difficulty,
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
+          nutrition_info: recipe.nutrition_info
+        },
+        created_at: new Date().toISOString()
+      };
+
+      // Get existing saved recipes from localStorage
+      const existingRecipes = JSON.parse(localStorage.getItem('savedRecipes') || '[]');
+      const updatedRecipes = [...existingRecipes, savedRecipe];
+      localStorage.setItem('savedRecipes', JSON.stringify(updatedRecipes));
+
       toast({
         title: placeholders.success,
-        description: placeholders.recipeSaved,
+        description: `${recipe.name} saved to calendar for ${selectedChild.name}`,
       });
     } catch (error) {
       console.error('Error saving to calendar:', error);
@@ -577,6 +697,20 @@ Format the response as JSON with the following structure:
             {placeholders.title}
           </h1>
           <p className="text-gray-600 mt-1">{placeholders.subtitle}</p>
+          
+          {/* Auto-populated preferences indicator */}
+          {selectedChild && (
+            <div className="mt-2 flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                <Sparkles className="h-3 w-3" />
+                <span>Auto-populated for {selectedChild.name}</span>
+              </div>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-600">
+                Age: {calculateAge(selectedChild.birth_date)} years ({kidPreferences.age_group})
+              </span>
+            </div>
+          )}
         </div>
         
         {/* Age Group Filter */}
@@ -607,12 +741,12 @@ Format the response as JSON with the following structure:
             className="border-orange-200 text-orange-600 hover:bg-orange-50"
           >
             <User className="h-4 w-4 mr-2" />
-            {isHindi ? "प्राथमिकताएं" : "Preferences"}
+            {selectedChild ? `${selectedChild.name}'s Prefs` : (isHindi ? "प्राथमिकताएं" : "Preferences")}
           </Button>
           
           <Button
             onClick={generateRecipe}
-            disabled={generating}
+            disabled={generating || !selectedChild}
             className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
           >
             {generating ? (

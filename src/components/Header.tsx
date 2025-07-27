@@ -26,7 +26,7 @@ const Header = ({
   showUserInfo = true 
 }: HeaderProps) => {
   const navigate = useNavigate();
-  const { profile, loading, refreshProfile } = useUser();
+  const { user, profile, loading, refreshProfile } = useUser();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +60,14 @@ const Header = ({
       refreshProfile();
     }
   }, [loading, profile, refreshProfile]);
+
+  // Additional fallback: if profile is null but user exists, try to refresh
+  useEffect(() => {
+    if (!loading && !profile && user) {
+      console.log('🔄 Profile is null but user exists, attempting to refresh profile');
+      refreshProfile();
+    }
+  }, [loading, profile, user, refreshProfile]);
 
   const handleSignOut = async () => {
     try {
@@ -122,7 +130,7 @@ const Header = ({
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">
-                  {loading ? "Loading..." : userName}
+                  {loading ? "Loading..." : (userName === "User" && user?.email ? user.email.split('@')[0] : userName)}
                 </p>
                 <p className="text-xs text-gray-500">Premium Member</p>
               </div>

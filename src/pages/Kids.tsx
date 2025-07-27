@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import KidsRecipes from '@/components/KidsRecipes';
+import PlanCalendar from '@/components/PlanCalendar';
 import Layout from '@/components/Layout';
 import { useUser } from '@/contexts/UserContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -224,7 +225,7 @@ const Kids: React.FC = () => {
         {/* Main Content - Only show if a kid is selected */}
         {selectedKid ? (
           <Tabs defaultValue="recipes" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-gray-100 rounded-lg">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-1 p-1 bg-gray-100 rounded-lg">
               <TabsTrigger 
                 value="recipes" 
                 className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-3 py-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 hover:bg-white hover:shadow-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-orange-600"
@@ -257,6 +258,14 @@ const Kids: React.FC = () => {
                 <span className="hidden sm:inline">Community</span>
                 <span className="sm:hidden">Community</span>
               </TabsTrigger>
+              <TabsTrigger 
+                value="calendar" 
+                className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-3 py-3 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 hover:bg-white hover:shadow-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-purple-600"
+              >
+                <Calendar className="h-4 w-4 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Calendar</span>
+                <span className="sm:hidden">Calendar</span>
+              </TabsTrigger>
             </TabsList>
 
             {/* Recipes Tab */}
@@ -269,7 +278,7 @@ const Kids: React.FC = () => {
                   Age-appropriate recipes tailored for {selectedKid.name} ({getKidAge(selectedKid.birth_date)} years old)
                 </p>
               </div>
-              <KidsRecipes />
+              <KidsRecipes selectedChild={selectedKid} />
             </TabsContent>
 
             {/* Nutrition Tab */}
@@ -1025,6 +1034,15 @@ const Kids: React.FC = () => {
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+
+            {/* Calendar Tab */}
+            <TabsContent value="calendar" className="space-y-6">
+              <div className="text-center space-y-2">
+                <h2 className="text-2xl font-bold text-gray-900">Your Recipe Calendar</h2>
+                <p className="text-gray-600">View and manage your saved recipes for {selectedKid.name}</p>
+              </div>
+              <PlanCalendar selectedChild={selectedKid} />
             </TabsContent>
           </Tabs>
         ) : (

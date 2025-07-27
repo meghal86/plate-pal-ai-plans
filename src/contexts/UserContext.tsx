@@ -124,14 +124,14 @@ function UserProvider({ children }: UserProviderProps) {
       
       console.log('📡 Database query result:', { profileData, error });
       
-      if (!error && profileData) {
+      if (!error && profileData && profileData.full_name) {
         // Use real profile from database
         console.log('✅ Found existing profile:', profileData);
         setProfile(profileData);
         setLoading(false);
       } else {
         // No profile found or error, create from user data
-        console.log('📝 No existing profile found, creating from user data');
+        console.log('📝 No existing profile found or invalid data, creating from user data');
         const newProfile = createProfileFromUser(currentUser);
         console.log('✅ New profile created:', newProfile);
         setProfile(newProfile);
@@ -214,6 +214,27 @@ function UserProvider({ children }: UserProviderProps) {
   useEffect(() => {
     console.log('🔄 UserContext useEffect started');
 
+    // Check for existing session immediately on mount
+    const checkExistingSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          console.log('🔍 Found existing session for user:', session.user.id);
+          setUser(session.user);
+          await loadUserProfile(session.user);
+        } else {
+          console.log('🔍 No existing session found');
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('❌ Error checking existing session:', error);
+        setLoading(false);
+      }
+    };
+
+    // Check existing session first
+    checkExistingSession();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔄 Auth state change:', event, session?.user?.id);
@@ -227,9 +248,12 @@ function UserProvider({ children }: UserProviderProps) {
             console.log('🚪 User signed out, clearing profile');
             setUser(null);
             setProfile(null);
+            setLoading(false);
           } else if (event === 'TOKEN_REFRESHED' && session?.user) {
             console.log('🔄 Token refreshed, updating user');
             setUser(session.user);
+            // Reload profile after token refresh to ensure we have latest data
+            await loadUserProfile(session.user);
           } else if (event === 'INITIAL_SESSION') {
             console.log('🔄 Initial session event:', session?.user?.id ? 'User found' : 'No user');
             if (session?.user) {
@@ -238,11 +262,11 @@ function UserProvider({ children }: UserProviderProps) {
             } else {
               setUser(null);
               setProfile(null);
+              setLoading(false);
             }
           }
         } catch (error) {
           console.error('❌ Error in auth state change:', error);
-        } finally {
           setLoading(false);
         }
       }
