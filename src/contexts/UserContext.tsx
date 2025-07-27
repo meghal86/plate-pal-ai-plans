@@ -70,18 +70,19 @@ function UserProvider({ children }: UserProviderProps) {
                  currentUser.user_metadata?.preferred_username;
     }
     
-    // If still no name, use email prefix
+    // If still no name, use email prefix with better formatting
     if (!fullName && currentUser.email) {
       const emailPrefix = currentUser.email.split('@')[0];
       // Capitalize first letter and replace dots/underscores with spaces
       fullName = emailPrefix
         .replace(/[._]/g, ' ')
-        .replace(/\b\w/g, l => l.toUpperCase());
+        .replace(/\b\w/g, l => l.toUpperCase())
+        .trim();
     }
     
-    // Final fallback
-    if (!fullName) {
-      fullName = 'User';
+    // Final fallback - use a more descriptive name
+    if (!fullName || fullName === 'User') {
+      fullName = currentUser.email ? currentUser.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'User';
     }
 
     console.log('📝 Creating profile with fullName:', fullName, 'from user:', currentUser);
@@ -121,15 +122,11 @@ function UserProvider({ children }: UserProviderProps) {
 
     console.log('🚀 Loading profile for user:', currentUser.id);
     loadingRef.current = true;
-    setLoading(true);
-    
-    // Try to load from database first (with short timeout)
+
     try {
-      console.log('📡 Querying database for existing profile...');
-      
-      // Create a promise that rejects after 3 seconds
+      // Set a timeout for the database query
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Database query timeout')), 3000);
+        setTimeout(() => reject(new Error('Database query timeout')), 5000); // Increased timeout
       });
       
       // Create the database query promise
@@ -230,13 +227,34 @@ function UserProvider({ children }: UserProviderProps) {
       console.log('🔄 Forcing profile refresh for user:', user.id);
       // Reset loading state first
       loadingRef.current = false;
-      setLoading(false);
+      setLoading(true);
       // Wait a bit then load
       setTimeout(() => {
         loadUserProfile(user);
       }, 100);
     }
   };
+
+  // Ensure we always have a valid profile
+  useEffect(() => {
+    if (!loading && user && !profile) {
+      console.log('🔄 No profile found but user exists, creating profile');
+      const fallbackProfile = createProfileFromUser(user);
+      setProfile(fallbackProfile);
+    }
+  }, [loading, user, profile]);
+
+  // Additional safety check: if profile exists but full_name is "User", try to fix it
+  useEffect(() => {
+    if (!loading && profile && profile.full_name === "User" && user?.email) {
+      console.log('🔄 Profile full_name is "User", attempting to fix');
+      const fixedProfile = {
+        ...profile,
+        full_name: user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      };
+      setProfile(fixedProfile);
+    }
+  }, [loading, profile, user]);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user?.id) {
@@ -283,6 +301,11 @@ function UserProvider({ children }: UserProviderProps) {
           };
         })()
       };
+
+      // Final safety check: never allow "User" as full_name if we have email
+      if (completeProfile.full_name === "User" && user?.email) {
+        completeProfile.full_name = user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      }
 
       setProfile(completeProfile);
       toast({
