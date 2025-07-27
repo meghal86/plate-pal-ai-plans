@@ -122,11 +122,12 @@ function UserProvider({ children }: UserProviderProps) {
 
     console.log('🚀 Loading profile for user:', currentUser.id);
     loadingRef.current = true;
+    setLoading(true);
 
     try {
       // Set a timeout for the database query
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Database query timeout')), 5000); // Increased timeout
+        setTimeout(() => reject(new Error('Database query timeout')), 5000);
       });
       
       // Create the database query promise
@@ -146,7 +147,7 @@ function UserProvider({ children }: UserProviderProps) {
         console.log('✅ Found existing profile:', profileData);
         console.log('🔍 Profile full_name:', profileData.full_name);
         
-        // Always preserve the existing full_name, never overwrite it
+        // CRITICAL: Always preserve the existing full_name, never overwrite it
         const completeProfile: UserProfile = {
           ...profileData,
           full_name: profileData.full_name || 'User', // Preserve existing name
@@ -174,6 +175,11 @@ function UserProvider({ children }: UserProviderProps) {
             };
           })()
         };
+        
+        // FINAL SAFETY CHECK: Never allow "User" as full_name if we have email
+        if (completeProfile.full_name === "User" && currentUser?.email) {
+          completeProfile.full_name = currentUser.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
         
         console.log('✅ Setting complete profile:', completeProfile);
         console.log('🔍 Final full_name:', completeProfile.full_name);
@@ -256,6 +262,26 @@ function UserProvider({ children }: UserProviderProps) {
     }
   }, [loading, profile, user]);
 
+  // CRITICAL: Prevent profile corruption from other components
+  useEffect(() => {
+    if (profile && user && profile.user_id !== user.id) {
+      console.log('⚠️ Profile user_id mismatch detected, reloading profile');
+      loadUserProfile(user);
+    }
+  }, [profile, user]);
+
+  // Additional safety: ensure profile is never corrupted
+  useEffect(() => {
+    if (profile && profile.full_name === "User" && user?.email) {
+      console.log('🔄 Detected corrupted profile, fixing immediately');
+      const fixedProfile = {
+        ...profile,
+        full_name: user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      };
+      setProfile(fixedProfile);
+    }
+  }, [profile, user]);
+
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user?.id) {
       throw new Error('No user found');
@@ -307,11 +333,17 @@ function UserProvider({ children }: UserProviderProps) {
         completeProfile.full_name = user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
       }
 
-      setProfile(completeProfile);
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
-      });
+      // CRITICAL: Only update if the profile is valid
+      if (completeProfile.user_id === user.id) {
+        setProfile(completeProfile);
+        toast({
+          title: "Success",
+          description: "Profile updated successfully",
+        });
+      } else {
+        console.error('Profile user_id mismatch, not updating');
+        throw new Error('Profile user_id mismatch');
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
       toast({

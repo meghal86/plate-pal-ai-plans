@@ -19,60 +19,100 @@ type Family = Database['public']['Tables']['families']['Row'];
 
 const Kids: React.FC = () => {
   const navigate = useNavigate();
-  const { user, profile } = useUser();
+  const { user } = useUser(); // Only use user, not profile to avoid conflicts
   const [kidsProfiles, setKidsProfiles] = useState<KidsProfile[]>([]);
   const [selectedKid, setSelectedKid] = useState<KidsProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userFamilyId, setUserFamilyId] = useState<string | null>(null);
 
-  // Load kids profiles
-  useEffect(() => {
-    const loadKidsProfiles = async () => {
-      if (!user?.id || !profile?.family_id) return;
-      
-      try {
-        // Use the family_id from the existing user profile instead of querying again
-        const { data: kids, error } = await supabase
-          .from('kids_profiles')
-          .select('*')
-          .eq('family_id', profile.family_id)
-          .order('created_at', { ascending: true });
-
-        if (error) {
-          console.error('Error loading kids profiles:', error);
-        } else {
-          setKidsProfiles(kids || []);
-          // Auto-select first kid if available
-          if (kids && kids.length > 0 && !selectedKid) {
-            setSelectedKid(kids[0]);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading kids profiles:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Only load kids profiles if we have both user and profile with family_id
-    if (user?.id && profile?.family_id) {
-      loadKidsProfiles();
-    } else if (user?.id && !profile?.family_id) {
-      // If user exists but no family_id, just stop loading
-      setLoading(false);
-    }
-  }, [user?.id, profile?.family_id]); // Removed selectedKid from dependencies
-
-  // Refresh kids profiles
-  const refreshKidsProfiles = async () => {
-    if (!user?.id || !profile?.family_id) return;
-    
-    setLoading(true);
+  // Separate function to get user's family_id without affecting main profile
+  const getUserFamilyId = async (userId: string): Promise<string | null> => {
     try {
-      // Use the family_id from the existing user profile
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('family_id')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error getting user family_id:', error);
+        return null;
+      }
+      
+      return data?.family_id || null;
+    } catch (error) {
+      console.error('Error getting user family_id:', error);
+      return null;
+    }
+  };
+
+  // Dedicated function to load kids profiles without affecting main profile
+  const loadKidsProfilesDedicated = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      
+      // First, get the user's family_id separately
+      const familyId = await getUserFamilyId(user.id);
+      setUserFamilyId(familyId);
+      
+      if (!familyId) {
+        console.log('No family_id found for user');
+        setLoading(false);
+        return;
+      }
+      
+      // Then load kids profiles using the family_id
       const { data: kids, error } = await supabase
         .from('kids_profiles')
         .select('*')
-        .eq('family_id', profile.family_id)
+        .eq('family_id', familyId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error loading kids profiles:', error);
+      } else {
+        setKidsProfiles(kids || []);
+        // Auto-select first kid if available
+        if (kids && kids.length > 0 && !selectedKid) {
+          setSelectedKid(kids[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading kids profiles:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load kids profiles on component mount
+  useEffect(() => {
+    if (user?.id) {
+      loadKidsProfilesDedicated();
+    }
+  }, [user?.id]); // Only depend on user.id, not profile
+
+  // Refresh kids profiles function
+  const refreshKidsProfiles = async () => {
+    if (!user?.id) return;
+    
+    setLoading(true);
+    try {
+      // Get fresh family_id
+      const familyId = await getUserFamilyId(user.id);
+      setUserFamilyId(familyId);
+      
+      if (!familyId) {
+        console.log('No family_id found for user');
+        setLoading(false);
+        return;
+      }
+      
+      const { data: kids, error } = await supabase
+        .from('kids_profiles')
+        .select('*')
+        .eq('family_id', familyId)
         .order('created_at', { ascending: true });
 
       if (error) {

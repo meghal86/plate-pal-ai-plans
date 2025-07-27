@@ -72,6 +72,27 @@ const DietPlans = () => {
   const { user } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Separate function to get user profile data without affecting main profile
+  const getUserProfileForAI = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('full_name, age, weight, height, weight_unit, activity_level, health_goals, dietary_restrictions')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error getting user profile for AI:', error);
+        return null;
+      }
+      
+      return profile;
+    } catch (error) {
+      console.error('Error getting user profile for AI:', error);
+      return null;
+    }
+  };
+
   // Load existing generated plans
   const loadGeneratedPlans = async () => {
     console.log('🔍 loadGeneratedPlans called for user:', user?.id);
@@ -233,11 +254,7 @@ const DietPlans = () => {
       const realUserId = user.id;
       
       // Get user profile for personalized plan generation
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', realUserId)
-        .single();
+      const profile = await getUserProfileForAI(realUserId);
 
       // Prepare comprehensive user context for AI
       const userContext = `
@@ -297,7 +314,6 @@ const DietPlans = () => {
       const { data: savedPlan, error: saveError } = await supabase
         .from('nutrition_plans')
         .insert({
-          user_id: realUserId,
           title: `${preferences.planType} Plan`,
           description: aiPlanData.description || `Personalized ${preferences.planType.toLowerCase()} plan`.replace(/\s+/g, ' ').trim(),
           plan_content: aiPlanData,

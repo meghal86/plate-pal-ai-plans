@@ -71,6 +71,27 @@ const AIGeneratedPlans = () => {
   });
   const { toast } = useToast();
 
+  // Separate function to get user profile data without affecting main profile
+  const getUserProfileForAI = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('full_name, age, weight, height, weight_unit, activity_level, health_goals, dietary_restrictions')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error getting user profile for AI:', error);
+        return null;
+      }
+      
+      return profile;
+    } catch (error) {
+      console.error('Error getting user profile for AI:', error);
+      return null;
+    }
+  };
+
   const planTypes = [
     "Weight Loss",
     "Muscle Building", 
@@ -159,11 +180,7 @@ const AIGeneratedPlans = () => {
       const realUserId = user.id;
       
       // Get user profile for personalized plan generation
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', realUserId)
-        .single();
+      const profile = await getUserProfileForAI(realUserId);
 
       // Prepare comprehensive user context for AI
       const userContext = `
@@ -196,7 +213,7 @@ const AIGeneratedPlans = () => {
         description: aiPlanData.description || `Personalized ${planPreferences.planType.toLowerCase()} plan for ${planPreferences.duration}`,
         duration: aiPlanData.duration || planPreferences.duration,
         calories: aiPlanData.calories || planPreferences.targetCalories,
-        meals: aiPlanData.meals || []
+        meals: aiPlanData.dailyMeals || [] // Use dailyMeals instead of meals
       };
 
       // Save to the nutrition_plans table
