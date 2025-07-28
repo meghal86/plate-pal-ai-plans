@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -473,7 +472,7 @@ const AIGeneratedPlans = () => {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Your Generated Plans</h3>
           {generatedPlans.map((plan) => (
-            <Card key={plan.id} className="border-0 shadow-sm">
+            <Card key={plan.id} className="border-0 shadow-sm sm:rounded-lg p-4 sm:p-6">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -508,30 +507,31 @@ const AIGeneratedPlans = () => {
                 
                 <div className="space-y-3">
                   <h4 className="font-medium text-gray-900">Sample Meals</h4>
-                  {plan.meals.slice(0, 3).map((meal, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Heart className="h-4 w-4 text-blue-600" />
+                  <div className="flex flex-col gap-3">
+                    {plan.meals.slice(0, 3).map((meal, index) => (
+                      <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 rounded-lg space-y-2 sm:space-y-0">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Heart className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{meal.name}</p>
+                            <p className="text-xs text-gray-500">{meal.calories} calories</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{meal.name}</p>
-                          <p className="text-xs text-gray-500">{meal.calories} calories</p>
+                        <div className="text-right">
+                          <div className="flex space-x-2 text-xs">
+                            <span className="text-blue-600">P: {meal.macros.protein}g</span>
+                            <span className="text-green-600">C: {meal.macros.carbs}g</span>
+                            <span className="text-orange-600">F: {meal.macros.fat}g</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="flex space-x-2 text-xs">
-                          <span className="text-blue-600">P: {meal.macros.protein}g</span>
-                          <span className="text-green-600">C: {meal.macros.carbs}g</span>
-                          <span className="text-orange-600">F: {meal.macros.fat}g</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-                
-                <div className="mt-4 flex justify-end">
-                  <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                <div className="mt-4 flex justify-end sm:justify-end">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto text-blue-600 border-blue-200 hover:bg-blue-50">
                     View Full Plan
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
