@@ -60,17 +60,17 @@ function UserProvider({ children }: UserProviderProps) {
   const loadingRef = useRef(false);
 
   const createProfileFromUser = (currentUser: any): UserProfile => {
-    // Extract full_name from user metadata or email
+    // PRIORITY 1: Extract full_name from user metadata (set during sign-up)
     let fullName = currentUser.user_metadata?.full_name;
-    
-    // If no full_name in metadata, try other fields
+
+    // PRIORITY 2: If no full_name in metadata, try other auth metadata fields
     if (!fullName) {
-      fullName = currentUser.user_metadata?.name || 
+      fullName = currentUser.user_metadata?.name ||
                  currentUser.user_metadata?.display_name ||
                  currentUser.user_metadata?.preferred_username;
     }
-    
-    // If still no name, use email prefix with better formatting
+
+    // PRIORITY 3: Only if no metadata exists, use email prefix with better formatting
     if (!fullName && currentUser.email) {
       const emailPrefix = currentUser.email.split('@')[0];
       // Capitalize first letter and replace dots/underscores with spaces
@@ -79,13 +79,13 @@ function UserProvider({ children }: UserProviderProps) {
         .replace(/\b\w/g, l => l.toUpperCase())
         .trim();
     }
-    
-    // Final fallback - use a more descriptive name
+
+    // Final fallback
     if (!fullName || fullName === 'User') {
       fullName = currentUser.email ? currentUser.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'User';
     }
 
-    console.log('📝 Creating profile with fullName:', fullName, 'from user:', currentUser);
+    console.log('📝 Creating profile with fullName:', fullName, 'from user metadata:', currentUser.user_metadata);
 
     return {
       user_id: currentUser.id,
@@ -150,7 +150,7 @@ function UserProvider({ children }: UserProviderProps) {
         // CRITICAL: Always preserve the existing full_name, never overwrite it
         const completeProfile: UserProfile = {
           ...profileData,
-          full_name: profileData.full_name || 'User', // Preserve existing name
+          full_name: profileData.full_name || 'User', // Preserve existing name from database
           phone_number: profileData.phone_number || null,
           notification_preferences: (() => {
             // Handle the notification_preferences from database
@@ -176,7 +176,7 @@ function UserProvider({ children }: UserProviderProps) {
           })()
         };
         
-        // FINAL SAFETY CHECK: Never allow "User" as full_name if we have email
+        // FINAL SAFETY CHECK: Only fix if full_name is actually "User" (not other valid names)
         if (completeProfile.full_name === "User" && currentUser?.email) {
           completeProfile.full_name = currentUser.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
@@ -260,7 +260,7 @@ function UserProvider({ children }: UserProviderProps) {
       };
       setProfile(fixedProfile);
     }
-  }, [loading, profile, user]);
+  }, [loading, profile?.user_id, user?.id]); // Only trigger when user/profile IDs change, not on every profile update
 
   // CRITICAL: Prevent profile corruption from other components
   useEffect(() => {
@@ -270,7 +270,7 @@ function UserProvider({ children }: UserProviderProps) {
     }
   }, [profile, user]);
 
-  // Additional safety: ensure profile is never corrupted
+  // Additional safety: ensure profile is never corrupted (only fix if actually "User")
   useEffect(() => {
     if (profile && profile.full_name === "User" && user?.email) {
       console.log('🔄 Detected corrupted profile, fixing immediately');
@@ -280,7 +280,7 @@ function UserProvider({ children }: UserProviderProps) {
       };
       setProfile(fixedProfile);
     }
-  }, [profile, user]);
+  }, [profile?.user_id, user?.id]); // Only trigger when IDs change, not on every profile change
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user?.id) {
@@ -288,6 +288,20 @@ function UserProvider({ children }: UserProviderProps) {
     }
 
     try {
+      // If full_name is being updated, also update auth metadata
+      if (updates.full_name) {
+        console.log('🔄 Updating auth metadata with full_name:', updates.full_name);
+        const { error: authError } = await supabase.auth.updateUser({
+          data: { full_name: updates.full_name }
+        });
+
+        if (authError) {
+          console.warn('⚠️ Could not update auth metadata:', authError);
+        } else {
+          console.log('✅ Auth metadata updated successfully');
+        }
+      }
+
       const { data, error } = await supabase
         .from('user_profiles')
         .update(updates)

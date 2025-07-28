@@ -32,9 +32,13 @@ const Header = ({
 
   // Get user name from profile
   const userName = profile?.full_name || "User";
-  
-  // Debug logging
-  console.log('🎯 Header render - loading:', loading, 'profile:', profile, 'userName:', userName);
+
+  // Debug logging only when profile changes
+  useEffect(() => {
+    if (profile) {
+      console.log('🎯 Header - Profile loaded:', profile, 'userName:', profile?.full_name);
+    }
+  }, [profile?.user_id, profile?.full_name]); // Only depend on the actual profile fields
 
   // Close dropdown when clicking outside
   useEffect(() => {

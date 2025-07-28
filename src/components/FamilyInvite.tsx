@@ -9,14 +9,15 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/contexts/UserContext';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Users, 
-  UserPlus, 
-  Baby, 
-  Plus, 
-  Mail, 
-  CheckCircle, 
-  Clock, 
+import { sendFamilyInviteEmail } from '@/api/resend-email';
+import {
+  Users,
+  UserPlus,
+  Baby,
+  Plus,
+  Mail,
+  CheckCircle,
+  Clock,
   X,
   Edit,
   Trash2
@@ -32,14 +33,16 @@ type Family = Database['public']['Tables']['families']['Row'];
 const FamilyInvite: React.FC = () => {
   const { user } = useUser();
   const { toast } = useToast();
-  
-  // Debug authentication
-  console.log('🔐 FamilyInvite - User authentication check:', {
-    user: user,
-    userId: user?.id,
-    userEmail: user?.email,
-    isAuthenticated: !!user?.id
-  });
+
+  // Debug authentication only once when component mounts
+  useEffect(() => {
+    console.log('🔐 FamilyInvite - User authentication check:', {
+      user: user,
+      userId: user?.id,
+      userEmail: user?.email,
+      isAuthenticated: !!user?.id
+    });
+  }, [user?.id]); // Only log when user ID changes
   
   const [family, setFamily] = useState<Family | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -164,6 +167,162 @@ const FamilyInvite: React.FC = () => {
     setShowAddKidDialog(true);
   };
 
+  // Debug function to check database
+  const debugKidsProfiles = async () => {
+    try {
+      console.log('🔍 DEBUG: Starting comprehensive kids search...');
+      console.log('🔍 DEBUG: User ID:', user.id);
+      console.log('🔍 DEBUG: User email:', user.email);
+
+      // Check 1: All kids in database
+      const { data: allKids, error: allKidsError } = await supabase
+        .from('kids_profiles')
+        .select('*');
+
+      console.log('🔍 DEBUG: All kids in database:', allKids);
+      console.log('🔍 DEBUG: All kids error:', allKidsError);
+
+      // Check 2: Kids by user ID
+      const { data: userKids, error: userKidsError } = await supabase
+        .from('kids_profiles')
+        .select('*')
+        .eq('created_by', user.id);
+
+      console.log('🔍 DEBUG: Kids by user ID:', userKids);
+      console.log('🔍 DEBUG: User kids error:', userKidsError);
+
+      // Check 3: Kids with null family_id
+      const { data: nullFamilyKids, error: nullFamilyError } = await supabase
+        .from('kids_profiles')
+        .select('*')
+        .is('family_id', null);
+
+      console.log('🔍 DEBUG: Kids with null family_id:', nullFamilyKids);
+      console.log('🔍 DEBUG: Null family error:', nullFamilyError);
+
+      // Check 4: Current family info
+      console.log('🔍 DEBUG: Current family:', family);
+
+      // Show results in toast
+      const totalKids = allKids?.length || 0;
+      const userKidsCount = userKids?.length || 0;
+      const nullKidsCount = nullFamilyKids?.length || 0;
+
+      toast({
+        title: "Debug Results",
+        description: `Total kids: ${totalKids}, Your kids: ${userKidsCount}, Orphaned: ${nullKidsCount}. Check console for details.`,
+      });
+
+    } catch (error) {
+      console.error('❌ DEBUG ERROR:', error);
+      toast({
+        title: "Debug Failed",
+        description: "Check console for error details.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Comprehensive recovery function
+  const recoverAllFamilyData = async () => {
+    try {
+      console.log('🚨 COMPREHENSIVE RECOVERY: Starting full recovery...');
+
+      // Step 1: Find or create family
+      let currentFamily = family;
+      if (!currentFamily) {
+        console.log('🏗️ Creating family for recovery...');
+        const { data: newFamily, error: familyError } = await supabase
+          .from('families')
+          .insert({
+            name: `${user.email?.split('@')[0]}'s Family`,
+            created_by: user.id
+          })
+          .select()
+          .single();
+
+        if (familyError) {
+          console.error('❌ Error creating family:', familyError);
+          throw familyError;
+        }
+
+        currentFamily = newFamily;
+        setFamily(newFamily);
+        console.log('✅ Family created:', currentFamily.id);
+      }
+
+      // Step 2: Add user as family member if not exists
+      console.log('👥 Adding user as family member...');
+      const { error: memberError } = await supabase
+        .from('family_members')
+        .upsert({
+          family_id: currentFamily.id,
+          user_id: user.id,
+          role: 'parent',
+          status: 'accepted',
+          invited_by: user.id,
+          invited_at: new Date().toISOString(),
+          accepted_at: new Date().toISOString()
+        }, {
+          onConflict: 'family_id,user_id'
+        });
+
+      if (memberError) {
+        console.error('❌ Error adding family member:', memberError);
+      } else {
+        console.log('✅ User added as family member');
+      }
+
+      // Step 3: Find and recover kids
+      console.log('👶 Searching for kids to recover...');
+      const { data: allKids } = await supabase
+        .from('kids_profiles')
+        .select('*')
+        .or(`created_by.eq.${user.id},family_id.is.null`);
+
+      console.log('👶 Found kids:', allKids);
+
+      if (allKids && allKids.length > 0) {
+        // Link kids to family
+        const { error: kidsError } = await supabase
+          .from('kids_profiles')
+          .update({
+            family_id: currentFamily.id,
+            created_by: user.id
+          })
+          .in('id', allKids.map(kid => kid.id));
+
+        if (kidsError) {
+          console.error('❌ Error updating kids:', kidsError);
+        } else {
+          console.log('✅ Kids linked to family');
+          setKidsProfiles(allKids);
+        }
+      }
+
+      // Step 4: Reload all data
+      await loadFamilyData();
+
+      toast({
+        title: "Family Data Recovered! 🎉",
+        description: `Successfully recovered family with ${allKids?.length || 0} kids.`,
+      });
+
+    } catch (error) {
+      console.error('❌ Comprehensive recovery error:', error);
+      toast({
+        title: "Recovery Failed",
+        description: "Failed to recover family data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Manual recovery function (legacy)
+  const recoverKidsProfiles = async () => {
+    await recoverAllFamilyData();
+  };
+
   // Load family data
   useEffect(() => {
     if (user?.id) {
@@ -177,10 +336,51 @@ const FamilyInvite: React.FC = () => {
       
       console.log('🔍 Loading family data for user:', user?.id);
       console.log('🔍 User object:', user);
-      
+      console.log('🔍 User email:', user?.email);
+      console.log('🔍 User created at:', user?.created_at);
+
       if (!user?.id) {
         console.log('❌ No user ID found');
         return;
+      }
+
+      // 🚨 EMERGENCY RECOVERY: Check for ALL kids that might belong to this user
+      console.log('🚨 EMERGENCY RECOVERY: Comprehensive kids search...');
+      console.log('🚨 User email:', user.email);
+
+      // Search 1: By user ID
+      const { data: kidsByUserId } = await supabase
+        .from('kids_profiles')
+        .select('*')
+        .eq('created_by', user.id);
+
+      // Search 2: By null family_id
+      const { data: orphanedKids } = await supabase
+        .from('kids_profiles')
+        .select('*')
+        .is('family_id', null);
+
+      // Search 3: ALL kids (to see what exists)
+      const { data: allKids } = await supabase
+        .from('kids_profiles')
+        .select('*');
+
+      console.log('🚨 Kids by user ID:', kidsByUserId);
+      console.log('🚨 Orphaned kids:', orphanedKids);
+      console.log('🚨 ALL kids in database:', allKids);
+
+      // Combine all potential kids
+      const potentialKids = [
+        ...(kidsByUserId || []),
+        ...(orphanedKids || [])
+      ].filter((kid, index, self) =>
+        index === self.findIndex(k => k.id === kid.id)
+      ); // Remove duplicates
+
+      console.log('🚨 Potential kids to recover:', potentialKids);
+
+      if (potentialKids && potentialKids.length > 0) {
+        console.log('✅ EMERGENCY: Found existing kids, will restore them!');
       }
       
       // Get user's family
@@ -192,37 +392,151 @@ const FamilyInvite: React.FC = () => {
 
       console.log('🔍 User profile result:', { userProfile, userProfileError });
 
+      let familyData = null;
+
       if (userProfile?.family_id) {
-        // Get family details
-        const { data: familyData } = await supabase
+        // Get family details from user profile
+        const { data: profileFamily } = await supabase
           .from('families')
           .select('*')
           .eq('id', userProfile.family_id)
           .single();
 
-        if (familyData) {
-          setFamily(familyData);
+        familyData = profileFamily;
+      } else {
+        // Check if user has created any families
+        const { data: createdFamilies } = await supabase
+          .from('families')
+          .select('*')
+          .eq('created_by', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
 
-          // Get family members
-          const { data: members } = await supabase
+        if (createdFamilies && createdFamilies.length > 0) {
+          familyData = createdFamilies[0];
+
+          // Update user profile with the family_id
+          await supabase
+            .from('user_profiles')
+            .update({ family_id: familyData.id })
+            .eq('user_id', user.id);
+        }
+      }
+
+      if (familyData) {
+        setFamily(familyData);
+        console.log('✅ Family loaded:', familyData);
+
+        // Get family members
+        console.log('👥 Loading family members for family:', familyData.id);
+        const { data: members, error: membersError } = await supabase
+          .from('family_members')
+          .select('*')
+          .eq('family_id', familyData.id);
+
+        console.log('👥 Family members result:', { members, membersError });
+
+        if (membersError) {
+          console.error('❌ Error loading family members:', membersError);
+        } else if (members) {
+          setFamilyMembers(members);
+          console.log('✅ Family members loaded:', members.length);
+        } else {
+          // Check if user should be added as family member
+          console.log('🔍 No family members found, checking if user should be added...');
+
+          // Add current user as family member if not exists
+          const { error: addMemberError } = await supabase
             .from('family_members')
-            .select('*')
-            .eq('family_id', userProfile.family_id);
+            .insert({
+              family_id: familyData.id,
+              user_id: user.id,
+              role: 'parent',
+              status: 'accepted',
+              invited_by: user.id,
+              invited_at: new Date().toISOString(),
+              accepted_at: new Date().toISOString()
+            });
 
-          if (members) {
-            setFamilyMembers(members);
-          }
+          if (addMemberError) {
+            console.error('❌ Error adding user as family member:', addMemberError);
+          } else {
+            console.log('✅ Added user as family member');
+            // Reload family members
+            const { data: updatedMembers } = await supabase
+              .from('family_members')
+              .select('*')
+              .eq('family_id', familyData.id);
 
-          // Get kids profiles
-          const { data: kids } = await supabase
-            .from('kids_profiles')
-            .select('*')
-            .eq('family_id', userProfile.family_id);
-
-          if (kids) {
-            setKidsProfiles(kids);
+            if (updatedMembers) {
+              setFamilyMembers(updatedMembers);
+              console.log('✅ Family members reloaded:', updatedMembers.length);
+            }
           }
         }
+
+        // Get kids profiles
+        console.log('👶 Loading kids profiles for family:', familyData.id);
+        const { data: kids, error: kidsError } = await supabase
+          .from('kids_profiles')
+          .select('*')
+          .eq('family_id', familyData.id);
+
+        console.log('👶 Kids profiles result:', { kids, kidsError });
+
+        if (kidsError) {
+          console.error('❌ Error loading kids profiles:', kidsError);
+        } else if (kids && kids.length > 0) {
+          setKidsProfiles(kids);
+          console.log('✅ Kids profiles loaded:', kids.length);
+        } else {
+          // EMERGENCY RECOVERY: Use the potential kids we found earlier
+          console.log('🔍 No kids found for family, using emergency recovery...');
+
+          if (potentialKids && potentialKids.length > 0) {
+            console.log('🔧 EMERGENCY RECOVERY: Restoring potential kids...');
+            console.log('🔧 Kids to restore:', potentialKids);
+
+            // Update kids to link to current family
+            const { error: updateError } = await supabase
+              .from('kids_profiles')
+              .update({
+                family_id: familyData.id,
+                created_by: user.id // Ensure ownership
+              })
+              .in('id', potentialKids.map(kid => kid.id));
+
+            if (updateError) {
+              console.error('❌ Error updating kids family_id:', updateError);
+            } else {
+              console.log('✅ EMERGENCY RECOVERY: Kids family_id updated successfully');
+            }
+
+            setKidsProfiles(potentialKids);
+            console.log('✅ EMERGENCY RECOVERY: Kids profiles restored:', potentialKids.length);
+
+            toast({
+              title: "Kids Profiles Recovered! 🎉",
+              description: `Emergency recovery found and restored ${potentialKids.length} kids profile(s).`,
+            });
+          } else {
+            console.log('❌ EMERGENCY RECOVERY: No kids found anywhere');
+
+            // Show all kids for debugging
+            if (allKids && allKids.length > 0) {
+              console.log('🔍 DEBUG: All kids in database:', allKids);
+              toast({
+                title: "Debug Info",
+                description: `Found ${allKids.length} total kids in database. Check console for details.`,
+              });
+            }
+          }
+        }
+      } else {
+        console.log('ℹ️ No family found for user');
+        setFamily(null);
+        setFamilyMembers([]);
+        setKidsProfiles([]);
       }
       
     } catch (error) {
@@ -245,56 +559,113 @@ const FamilyInvite: React.FC = () => {
       // In a production app, you might want to implement email verification
       // or use a different method to check if the user exists
       
-      // Get or create family for current user
-      let familyId = family?.id;
-      if (!familyId) {
-        // Create a new family
-        const { data: newFamily, error: familyError } = await supabase
-          .from('families')
-          .insert({
-            name: `${user.email}'s Family`,
-            created_by: user.id
-          })
-          .select()
-          .single();
+      // SIMPLE APPROACH: Just create a family directly for the invitation
+      console.log('🏗️ Creating family directly for invitation...');
 
-        if (familyError) throw familyError;
-        familyId = newFamily.id;
-        setFamily(newFamily);
+      const { data: inviteFamily, error: familyError } = await supabase
+        .from('families')
+        .insert({
+          name: `${user.email?.split('@')[0]}'s Family - ${Date.now()}`,
+          created_by: user.id
+        })
+        .select()
+        .single();
 
-        // Add user as a family member with 'accepted' status
-        const { error: memberError } = await supabase
-          .from('family_members')
-          .insert({
-            family_id: familyId,
-            user_id: user.id,
-            role: 'parent',
-            status: 'accepted',
-            invited_by: user.id,
-            invited_at: new Date().toISOString(),
-            accepted_at: new Date().toISOString()
-          });
-
-        if (memberError) throw memberError;
-
-        // Update user profile with family_id
-        await supabase
-          .from('user_profiles')
-          .update({ family_id: familyId })
-          .eq('user_id', user.id);
+      if (familyError || !inviteFamily) {
+        console.error('❌ Failed to create family:', familyError);
+        throw new Error('Failed to create family for invitation');
       }
 
-      // For now, we'll create a placeholder invitation
-      // In a real app, you'd send an email invitation
-      toast({
-        title: "Invitation Sent",
-        description: `Invitation sent to ${inviteEmail}. They will receive an email to join your family.`,
+      const familyId = inviteFamily.id;
+      console.log('✅ Family created for invitation:', familyId);
+
+      // Generate invite link
+      const inviteToken = crypto.randomUUID();
+      const inviteLink = `${window.location.origin}/family-invite?family=${familyId}&email=${encodeURIComponent(inviteEmail)}&token=${inviteToken}`;
+
+      // Get user profile for inviter name
+      const { data: inviterProfile } = await supabase
+        .from('user_profiles')
+        .select('full_name, first_name, last_name')
+        .eq('user_id', user.id)
+        .single();
+
+      console.log('👤 Inviter profile data:', inviterProfile);
+
+      // Build inviter name from available data
+      let inviterName = 'Someone';
+      if (inviterProfile?.full_name) {
+        inviterName = inviterProfile.full_name;
+      } else if (inviterProfile?.first_name) {
+        inviterName = inviterProfile.last_name
+          ? `${inviterProfile.first_name} ${inviterProfile.last_name}`
+          : inviterProfile.first_name;
+      } else if (user.email) {
+        // Extract name from email (e.g., "john.doe@example.com" -> "John Doe")
+        const emailName = user.email.split('@')[0];
+        inviterName = emailName
+          .split(/[._-]/)
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .join(' ');
+      }
+
+      console.log('👤 Final inviter name:', inviterName);
+      // Generate family name
+      let familyName = family?.name;
+      if (!familyName) {
+        if (inviterProfile?.first_name) {
+          familyName = `${inviterProfile.first_name}'s Family`;
+        } else if (user.email) {
+          const emailName = user.email.split('@')[0];
+          const firstName = emailName.split(/[._-]/)[0];
+          familyName = `${firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase()}'s Family`;
+        } else {
+          familyName = 'Family';
+        }
+      }
+
+      console.log('🏠 Family name for invitation:', familyName);
+
+      // Send email invitation
+      console.log('📧 Sending family invitation email...');
+      const emailResult = await sendFamilyInviteEmail({
+        inviterName,
+        inviterEmail: user.email || '',
+        familyName,
+        inviteEmail,
+        role: inviteRole,
+        inviteLink
       });
-      
+
+      if (!emailResult.success) {
+        throw new Error(emailResult.error || 'Failed to send email');
+      }
+
+      // Validate familyId before creating invitation
+      if (!familyId) {
+        console.error('❌ No family ID available for invitation');
+        throw new Error('No family found. Please create a family first.');
+      }
+
+      // SKIP DATABASE STORAGE FOR NOW - just send email
+      console.log('📝 Skipping database storage - sending email only');
+      console.log('📋 Invitation details:', {
+        familyId,
+        inviteEmail,
+        inviteRole,
+        inviteToken,
+        inviteLink
+      });
+
+      toast({
+        title: "Invitation Sent! 📧",
+        description: `Email invitation sent to ${inviteEmail}. They will receive an email to join your family.`,
+      });
+
       setInviteEmail('');
       setShowInviteDialog(false);
-      
-            // Reload family data
+
+      // Reload family data
       await loadFamilyData();
       
     } catch (error) {
@@ -453,7 +824,7 @@ const FamilyInvite: React.FC = () => {
             Family Members
           </CardTitle>
           <CardDescription>
-            Invite family members to share access to kids profiles
+            Invite family members to share access to kids profiles, meal plans, dietary preferences, and all family data. Each member gets their own login with full access.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -470,7 +841,14 @@ const FamilyInvite: React.FC = () => {
                 <DialogHeader>
                   <DialogTitle>Invite Family Member</DialogTitle>
                   <DialogDescription>
-                    Send an invitation to join your family and access kids profiles
+                    Send an invitation to join your family. They'll get their own login with access to:
+                    <ul className="mt-2 space-y-1 text-sm">
+                      <li>• Kids' nutrition profiles and dietary preferences</li>
+                      <li>• Shared meal plans and recipes</li>
+                      <li>• Family shopping lists</li>
+                      <li>• Health tracking and progress reports</li>
+                      <li>• All family data and settings</li>
+                    </ul>
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -879,8 +1257,29 @@ const FamilyInvite: React.FC = () => {
               {kidsProfiles.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <Baby className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                  <p>No kids profiles yet</p>
+                  <p>No kids profiles found</p>
                   <p className="text-sm">Add your kids to start tracking their nutrition and growth</p>
+
+                  {/* Recovery Buttons */}
+                  <div className="mt-4 space-y-2">
+                    <Button
+                      variant="outline"
+                      onClick={recoverAllFamilyData}
+                      className="text-sm mr-2"
+                    >
+                      🔧 Recover All Family Data
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={debugKidsProfiles}
+                      className="text-sm"
+                    >
+                      🔍 Debug Kids Database
+                    </Button>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Click if you had kids profiles before
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

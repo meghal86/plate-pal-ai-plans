@@ -8,6 +8,7 @@ import BrandIcons from "@/components/BrandIcons";
 
 const SignUp = () => {
   const [formData, setFormData] = useState({
+    fullName: "",
     email: "",
     password: "",
     confirmPassword: ""
@@ -50,7 +51,7 @@ const SignUp = () => {
     setError("");
 
     // Client-side validation
-    if (!formData.email || !formData.password || !formData.confirmPassword) {
+    if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
       setError(isHindi ? "सभी फ़ील्ड भरें" : "Please fill in all fields");
       setLoading(false);
       return;
@@ -82,7 +83,10 @@ const SignUp = () => {
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/signin`
+          emailRedirectTo: `${window.location.origin}/signin`,
+          data: {
+            full_name: formData.fullName
+          }
         }
       });
 
@@ -222,6 +226,20 @@ const SignUp = () => {
 
           {/* Sign Up Form */}
           <form onSubmit={handleSignUp} className="space-y-4">
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <User size={16} />
+              </div>
+              <Input
+                type="text"
+                placeholder={isHindi ? "पूरा नाम" : "Full Name"}
+                value={formData.fullName}
+                onChange={(e) => handleInputChange('fullName', e.target.value)}
+                className="h-12 pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                required
+              />
+            </div>
+
             <div className="relative">
               <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
                 <Mail size={16} />

@@ -16,6 +16,11 @@ import SharedShoppingList from "@/components/SharedShoppingList";
 import CookAssignment from "@/components/CookAssignment";
 import Layout from "@/components/Layout";
 
+// Make supabase available globally for debugging
+if (typeof window !== 'undefined') {
+  (window as any).supabase = supabase;
+}
+
 // Use the generated types from Supabase
 import type { Database } from '@/integrations/supabase/types';
 
@@ -54,26 +59,42 @@ const Family = () => {
   const loadFamilyData = async () => {
     try {
       setLoading(true);
-      
+
       if (!user?.id) {
         console.log('❌ No user ID found');
         return;
       }
-      
+
+      console.log('🔍 Loading family data for user:', user.id);
+
       // Get user's family from user_profiles
-      const { data: userProfile } = await supabase
+      const { data: userProfile, error: profileError } = await supabase
         .from('user_profiles')
         .select('family_id')
         .eq('user_id', user.id)
         .single();
 
+      if (profileError) {
+        console.error('❌ Error loading user profile:', profileError);
+      } else {
+        console.log('✅ User profile loaded:', userProfile);
+      }
+
       if (userProfile?.family_id) {
+        console.log('🏠 Loading family details for family_id:', userProfile.family_id);
+
         // Get family details
-        const { data: familyData } = await supabase
+        const { data: familyData, error: familyError } = await supabase
           .from('families')
           .select('*')
           .eq('id', userProfile.family_id)
           .single();
+
+        if (familyError) {
+          console.error('❌ Error loading family data:', familyError);
+        } else {
+          console.log('✅ Family data loaded:', familyData);
+        }
 
         if (familyData) {
           setCurrentFamily(familyData);
@@ -136,6 +157,8 @@ const Family = () => {
     }
 
     try {
+      console.log('🏗️ Creating family with name:', newFamilyName, 'for user:', user.id);
+
       // Create a new family
       const { data: newFamily, error: familyError } = await supabase
         .from('families')
@@ -146,7 +169,12 @@ const Family = () => {
         .select()
         .single();
 
-      if (familyError) throw familyError;
+      if (familyError) {
+        console.error('❌ Error creating family:', familyError);
+        throw familyError;
+      }
+
+      console.log('✅ Family created successfully:', newFamily);
 
       // Add user as a family member with 'accepted' status
       await supabase

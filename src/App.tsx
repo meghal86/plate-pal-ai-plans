@@ -18,6 +18,8 @@ import HealthMetrics from "./pages/HealthMetrics";
 import LabReports from "./pages/LabReports";
 import Rewards from "./pages/Rewards";
 import Kids from "./pages/Kids";
+import FamilyInviteAccept from "./pages/FamilyInviteAccept";
+import FamilyInviteComplete from "./pages/FamilyInviteComplete";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +42,8 @@ function AppContent() {
           <Route path="/lab-reports" element={<LabReports />} />
           <Route path="/rewards" element={<Rewards />} />
           <Route path="/kids" element={<Kids />} />
+          <Route path="/family-invite" element={<FamilyInviteAccept />} />
+          <Route path="/family-invite-complete" element={<FamilyInviteComplete />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

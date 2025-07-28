@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, Mail, Lock, CheckCircle, AlertCircle } from "lucide-react";
@@ -9,7 +9,8 @@ import BrandIcons from "@/components/BrandIcons";
 
 const SignIn = () => {
   console.log("SignIn component is loading"); // Debug log
-  
+
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     email: "",
     password: ""
@@ -25,6 +26,14 @@ const SignIn = () => {
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
   const [forgotPasswordError, setForgotPasswordError] = useState("");
   const navigate = useNavigate();
+
+  // Pre-fill email from URL parameters (for family invitations)
+  useEffect(() => {
+    const emailParam = searchParams.get('email');
+    if (emailParam) {
+      setFormData(prev => ({ ...prev, email: emailParam }));
+    }
+  }, [searchParams]);
 
   // Get user's language preference for placeholders
   const isHindi = navigator.language?.startsWith('hi') || false;
@@ -87,8 +96,13 @@ const SignIn = () => {
           setError(error.message);
         }
       } else {
-        // Successful login
-        navigate("/dashboard");
+        // Successful login - check for redirect parameter
+        const redirectParam = searchParams.get('redirect');
+        if (redirectParam === 'family-invite-complete') {
+          navigate('/family-invite-complete');
+        } else {
+          navigate("/dashboard");
+        }
       }
     } catch (err) {
       setError(isHindi ? "लॉगिन में त्रुटि हुई" : "Error during sign in");
