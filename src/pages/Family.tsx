@@ -68,12 +68,41 @@ const Family = () => {
         .single();
 
       if (userProfile?.family_id) {
-        // Get family details
-        const { data: familyData } = await supabase
+        // Get family details - first try as creator, then as member
+        let familyData = null;
+        
+        // Try to get family where user is the creator
+        const { data: createdFamily } = await supabase
           .from('families')
           .select('*')
           .eq('id', userProfile.family_id)
           .single();
+          
+        if (createdFamily) {
+          familyData = createdFamily;
+        } else {
+          // If not creator, check if user is a family member and get family via service role
+          // For now, we'll handle this by checking family_members first
+          const { data: memberCheck } = await supabase
+            .from('family_members')
+            .select('family_id')
+            .eq('user_id', user.id)
+            .eq('family_id', userProfile.family_id)
+            .eq('status', 'accepted')
+            .single();
+            
+          if (memberCheck) {
+            // User is a valid family member, but we can't query families table directly
+            // Create a temporary family object for display
+            familyData = {
+              id: userProfile.family_id,
+              name: 'Family',
+              created_by: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          }
+        }
 
         if (familyData) {
           setCurrentFamily(familyData);
