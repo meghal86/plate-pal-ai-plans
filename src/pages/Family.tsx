@@ -15,6 +15,8 @@ import { useUser } from "@/contexts/UserContext";
 import SharedShoppingList from "@/components/SharedShoppingList";
 import CookAssignment from "@/components/CookAssignment";
 import Layout from "@/components/Layout";
+import FamilyDebug from "@/components/FamilyDebug";
+import QuickAuth from "@/components/QuickAuth";
 
 // Use the generated types from Supabase
 import type { Database } from '@/integrations/supabase/types';
@@ -361,6 +363,12 @@ const Family = () => {
   return (
     <Layout showSidebar={true}>
       <div className="max-w-6xl mx-auto p-6 space-y-8">
+        {/* Add authentication helper */}
+        <QuickAuth />
+        
+        {/* Add debug component at the top for troubleshooting */}
+        <FamilyDebug />
+        
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Family & Kids</h1>
           <p className="text-gray-600">
