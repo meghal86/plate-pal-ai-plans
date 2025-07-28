@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/send-family-invite.js": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "RESEND_API_KEY": "re_h3tvM9fC_C5JH12ELAP1mY5Y8P5tPqGic"
+  }
+}
