@@ -100,9 +100,10 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
     startDate.setDate(startDate.getDate() + 1);
   }
 
-  // Load saved recipes
+  // Load saved recipes and AI-generated plans
   useEffect(() => {
     loadSavedRecipes();
+    loadAIGeneratedPlans();
   }, [user?.id, selectedChild?.id]);
 
   const loadSavedRecipes = async () => {
@@ -139,6 +140,81 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadAIGeneratedPlans = async () => {
+    if (!user?.id) return;
+    
+    try {
+      // Load active AI-generated plans from database
+      const { data: plans, error } = await supabase
+        .from('nutrition_plans')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading AI plans:', error);
+        return;
+      }
+
+      // Convert AI plans to calendar format
+      if (plans && plans.length > 0) {
+        const activePlan = plans[0];
+        const aiRecipes = convertAIPlanToCalendarFormat(activePlan);
+        setSavedRecipes(prev => [...prev, ...aiRecipes]);
+      }
+    } catch (error) {
+      console.error('Error loading AI plans:', error);
+    }
+  };
+
+  const convertAIPlanToCalendarFormat = (plan: any): SavedRecipe[] => {
+    const recipes: SavedRecipe[] = [];
+    
+    if (plan.plan_content?.dailyMeals) {
+      console.log('📅 Processing plan with', plan.plan_content.dailyMeals.length, 'days');
+      plan.plan_content.dailyMeals.forEach((day: any, dayIndex: number) => {
+        if (day.meals) {
+          day.meals.forEach((meal: any, mealIndex: number) => {
+            const scheduledDate = new Date();
+            scheduledDate.setDate(scheduledDate.getDate() + dayIndex);
+            
+            recipes.push({
+              id: `ai-${plan.id}-${dayIndex}-${mealIndex}`,
+              recipe_id: `ai-recipe-${plan.id}-${dayIndex}-${mealIndex}`,
+              user_id: user?.id || '',
+              kid_id: selectedChild?.id,
+              scheduled_date: scheduledDate.toISOString().split('T')[0],
+              meal_type: meal.mealType || 'lunch',
+              is_premium: true,
+              rating: 4.8,
+              views: Math.floor(Math.random() * 1000) + 500,
+              recipe_data: {
+                name: meal.name || `AI Generated ${meal.mealType}`,
+                calories: meal.calories || 400,
+                prep_time: meal.prep_time || '15 min',
+                difficulty: meal.difficulty || 'Easy',
+                ingredients: meal.ingredients || ['AI generated ingredients'],
+                instructions: meal.instructions || ['AI generated instructions'],
+                nutrition_info: meal.macros || {
+                  protein: 20,
+                  carbs: 30,
+                  fat: 15,
+                  fiber: 8,
+                  sugar: 10
+                }
+              },
+              created_at: new Date().toISOString()
+            });
+          });
+        }
+      });
+    }
+    
+    console.log('📅 Generated', recipes.length, 'recipes from plan data');
+    return recipes;
   };
 
   const generateProfessionalDemoData = (): SavedRecipe[] => {
@@ -645,12 +721,22 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                   Ingredients
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {selectedRecipe.recipe_data.ingredients.map((ingredient, index) => (
-                    <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                      <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                      {ingredient}
-                    </div>
-                  ))}
+                  {(() => {
+                    const ingredients = selectedRecipe.recipe_data.ingredients;
+                    // Handle both string and array formats
+                    const ingredientArray = Array.isArray(ingredients) 
+                      ? ingredients 
+                      : typeof ingredients === 'string' 
+                        ? ingredients.split(',').map(s => s.trim()).filter(s => s) 
+                        : ['No ingredients available'];
+                    
+                    return ingredientArray.map((ingredient, index) => (
+                      <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+                        {ingredient}
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
 
@@ -661,14 +747,24 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                   Instructions
                 </h4>
                 <div className="space-y-3">
-                  {selectedRecipe.recipe_data.instructions.map((instruction, index) => (
-                    <div key={index} className="flex gap-3 p-3 bg-blue-50 rounded-lg">
-                      <div className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                        {index + 1}
+                  {(() => {
+                    const instructions = selectedRecipe.recipe_data.instructions;
+                    // Handle both string and array formats
+                    const instructionArray = Array.isArray(instructions) 
+                      ? instructions 
+                      : typeof instructions === 'string' 
+                        ? instructions.split(/\d+\.\s*/).filter(s => s.trim()) 
+                        : ['No instructions available'];
+                    
+                    return instructionArray.map((instruction, index) => (
+                      <div key={index} className="flex gap-3 p-3 bg-blue-50 rounded-lg">
+                        <div className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                          {index + 1}
+                        </div>
+                        <p className="text-gray-700">{instruction}</p>
                       </div>
-                      <p className="text-gray-700">{instruction}</p>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
               </div>
 

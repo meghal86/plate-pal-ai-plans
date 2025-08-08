@@ -1,0 +1,15 @@
+{
+  "name": "Auto Spec and Test Generator",
+  "description": "Automatically creates spec files and testing files when all files are saved",
+  "trigger": {
+    "type": "fileSave",
+    "pattern": "**/*",
+    "condition": "allFilesSaved"
+  },
+  "action": {
+    "type": "agentRequest",
+    "request": "Analyze the recently saved files and create comprehensive spec documents and corresponding test files. For each component or module that was modified:\n\n1. Generate a detailed specification document that includes:\n   - Purpose and functionality\n   - API/interface definitions\n   - Props/parameters documentation\n   - Usage examples\n   - Mobile, tablet, and cross-platform compatibility requirements\n\n2. Create corresponding test files with:\n   - Unit tests for core functionality\n   - Integration tests where applicable\n   - Responsive design tests for mobile/tablet compatibility\n   - Cross-browser/OS compatibility tests\n\nEnsure all generated files follow the project's existing patterns and are placed in appropriate directories (specs in a 'specs' folder, tests in '__tests__' or 'tests' folders)."
+  },
+  "enabled": true,
+  "autoApprove": false
+}

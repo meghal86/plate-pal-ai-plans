@@ -24,6 +24,51 @@
   -webkit-line-clamp: 3;
 }
 
+/* Mobile-specific utilities */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch-friendly interactions */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 12px;
+}
+
+/* iOS Safari specific fixes */
+.ios-viewport-fix {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Safe area handling for mobile devices */
+.safe-area-padding {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Android viewport handling */
+.android-viewport {
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height */
+}
+
+/* Improved tap highlights */
+.tap-highlight {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* NourishPlate Design System - Health & Nutrition Focused
 All colors MUST be HSL for consistency and theming.
 */

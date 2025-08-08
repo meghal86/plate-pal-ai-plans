@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Auto Test & Spec Generator",
+  "description": "Automatically creates corresponding spec files and testing files whenever any file in the project is saved",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": []
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A file has been saved. Please analyze the saved file and create appropriate spec files and testing files for it. For TypeScript/JavaScript files, create .spec.ts/.spec.js files with comprehensive unit tests. For React components, create .test.tsx files with component testing. For API files, create integration tests. Ensure the test files follow best practices and cover the main functionality of the saved file."
+  }
+}

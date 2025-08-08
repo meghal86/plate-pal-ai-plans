@@ -37,11 +37,41 @@ const Dashboard = () => {
   const { profile, loading } = useUser();
   const [greeting, setGreeting] = useState("Good morning");
 
-  // Get user name from profile
-  const userName = profile?.full_name || "User";
+  // Get user name from profile with better fallback logic
+  const getUserName = () => {
+    if (loading) return "User";
+    
+    // Debug logging
+    console.log('🔍 Dashboard getUserName - profile:', profile);
+    console.log('🔍 Dashboard getUserName - profile.full_name:', profile?.full_name);
+    console.log('🔍 Dashboard getUserName - profile.email:', profile?.email);
+    
+    // Try profile first
+    if (profile?.full_name && profile.full_name !== "User") {
+      console.log('✅ Dashboard using profile.full_name:', profile.full_name);
+      return profile.full_name;
+    }
+    
+    // Fallback to extracting from email if available
+    if (profile?.email) {
+      const emailPrefix = profile.email.split('@')[0];
+      const extractedName = emailPrefix
+        .replace(/[._]/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase())
+        .trim();
+      console.log('✅ Dashboard using extracted name from email:', extractedName);
+      return extractedName;
+    }
+    
+    console.log('⚠️ Dashboard falling back to "User"');
+    return "User";
+  };
+
+  const userName = getUserName();
 
   // Debug logging
   console.log('🎯 Dashboard render - loading:', loading, 'profile:', profile, 'userName:', userName);
+  console.log('🔍 Profile full_name specifically:', profile?.full_name);
 
   // Function to get dynamic greeting based on time
   const getGreeting = () => {
@@ -221,7 +251,7 @@ const Dashboard = () => {
       </div>
 
       {/* Key Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-white/80 backdrop-blur-sm border-white/30 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -389,21 +419,21 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
+              <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2 touch-target tap-highlight">
                 <Utensils className="h-6 w-6" />
-                <span className="text-sm">Log Meal</span>
+                <span className="text-xs sm:text-sm">Log Meal</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
+              <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2 touch-target tap-highlight">
                 <FileText className="h-6 w-6" />
-                <span className="text-sm">Upload Report</span>
+                <span className="text-xs sm:text-sm">Upload Report</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
+              <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2 touch-target tap-highlight">
                 <TrendingUp className="h-6 w-6" />
-                <span className="text-sm">View Progress</span>
+                <span className="text-xs sm:text-sm">View Progress</span>
               </Button>
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2">
+              <Button variant="outline" className="h-20 flex flex-col items-center justify-center space-y-2 touch-target tap-highlight">
                 <Gift className="h-6 w-6" />
-                <span className="text-sm">Redeem Rewards</span>
+                <span className="text-xs sm:text-sm">Redeem Rewards</span>
               </Button>
             </div>
           </CardContent>

@@ -3,21 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
-  Upload, FileText, Sparkles, Search, Clock, Users, Star, Download, Target, TrendingUp, Heart, Zap, Plus, Calendar, Activity, Award, CheckCircle, ArrowRight, Brain, Lightbulb, AlertCircle, FileImage, File, XCircle, Loader2, Type, X, Eye, Play, RefreshCw, Trash2, TestTube, List
+  Upload, FileText, Sparkles, Search, Clock, Download, Target, TrendingUp, Heart, Plus, Calendar, Activity, Award, CheckCircle, Brain, Lightbulb, AlertCircle, FileImage, File, Loader2, Type, X, Eye, Play, RefreshCw, Trash2, List
 } from "lucide-react";
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { generateDietPlan, generatePlanEmbedding } from "@/api/generate-diet-plan";
 import { searchPlansBySimilarity, SearchResult } from "@/api/search-plans";
-import React from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUser } from "@/contexts/UserContext";
 
@@ -72,6 +71,12 @@ const DietPlans = () => {
   const { user } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Utility to get first name from full name
+  const getFirstName = (fullName?: string) => {
+    if (!fullName) return 'User';
+    return fullName.split(' ')[0];
+  };
+
   // Separate function to get user profile data without affecting main profile
   const getUserProfileForAI = async (userId: string) => {
     try {
@@ -115,23 +120,17 @@ const DietPlans = () => {
       if (error) {
         console.error('Error loading plans:', error);
       } else {
-        // Clean up plan descriptions to remove JSON formatting
+        // Clean up plan descriptions to remove JSON formatting (robust version)
         const cleanedPlans = (plans || []).map(plan => {
-          if (plan.description && plan.description.includes('{')) {
+          if (plan.description) {
             try {
-              // If description contains JSON, extract just the text part
-              const descMatch = plan.description.match(/"description":\s*"([^"]+)"/);
-              if (descMatch) {
-                plan.description = descMatch[1];
-              } else {
-                // Fallback: take first 200 characters before any JSON
-                const jsonStart = plan.description.indexOf('{');
-                if (jsonStart > 0) {
-                  plan.description = plan.description.substring(0, jsonStart).trim();
-                }
+              // Try to parse as JSON
+              const parsed = JSON.parse(plan.description);
+              if (parsed && typeof parsed === 'object' && parsed.description) {
+                plan.description = parsed.description;
               }
-            } catch (descError) {
-              console.log('Description cleanup failed for plan:', plan.id);
+            } catch {
+              // Not JSON, leave as-is
             }
           }
           return plan;
@@ -307,20 +306,36 @@ const DietPlans = () => {
       
       // Generate embedding for the plan content
       console.log('Generating embedding for plan...');
-      const embedding = await generatePlanEmbedding(aiPlanData);
+      let embedding = await generatePlanEmbedding(aiPlanData);
       console.log('Generated embedding with dimensions:', embedding.length);
-      
+
+      // Ensure embedding is the correct dimension (try 1536, pad/truncate as needed)
+      const REQUIRED_DIM = 1536;
+      if (!Array.isArray(embedding) || embedding.length !== REQUIRED_DIM) {
+        // If embedding is missing, not an array, or wrong length, use a zero vector
+        embedding = Array(REQUIRED_DIM).fill(0);
+      }
+      // Supabase vector columns require string representation in array format
+      const embeddingForDb = `{${embedding.join(",")}}`;
+
+      // Get current user for database operations
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
       // Save the generated plan to the database with embedding
       const { data: savedPlan, error: saveError } = await supabase
         .from('nutrition_plans')
         .insert({
+          user_id: currentUser.id, // Add the user_id for RLS
           title: `${preferences.planType} Plan`,
           description: aiPlanData.description || `Personalized ${preferences.planType.toLowerCase()} plan`.replace(/\s+/g, ' ').trim(),
           plan_content: aiPlanData,
           duration: preferences.duration,
           calories: preferences.targetCalories,
           is_active: true, // Set as active by default
-          embedding: embedding // Add the embedding vector
+          embedding: embeddingForDb as unknown as string // Store as Postgres vector string
         })
         .select()
         .single();
@@ -356,47 +371,45 @@ const DietPlans = () => {
       setShowPlanForm(false);
     } catch (error) {
       console.error('Generation error:', error);
-      
+
+      // Check if this is a specific API error
+      const errorMessage = (error as Error).message;
+      let title = "Generation Failed";
+      let description = "Unable to generate your diet plan. Please try again.";
+      let variant: "default" | "destructive" = "destructive";
+
+      if (errorMessage.includes('503') || errorMessage.includes('overloaded')) {
+        title = "Service Temporarily Unavailable";
+        description = "The AI service is currently overloaded. Please try again in a few minutes.";
+        variant = "default";
+      } else if (errorMessage.includes('429')) {
+        title = "Rate Limit Reached";
+        description = "Too many requests. Please wait a moment and try again.";
+        variant = "default";
+      } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('504')) {
+        title = "Server Error";
+        description = "The AI service is experiencing issues. Please try again shortly.";
+        variant = "default";
+      } else if (errorMessage.includes('fetch') || errorMessage.includes('network')) {
+        title = "Connection Error";
+        description = "Unable to connect to the AI service. Please check your internet connection and try again.";
+        variant = "default";
+      }
+
       toast({
-        title: "Plan Generated (Fallback)",
-        description: `Generated a ${preferences.planType.toLowerCase()} plan. AI features will be available soon.`,
+        title,
+        description,
+        variant,
       });
-      
-      setShowPlanForm(false);
+
+      // Don't close the form on error so user can try again
+      // setShowPlanForm(false);
     } finally {
       setGenerating(false);
     }
   };
 
-  // Mock active plans data (secondary feature)
-  const myActivePlans = [
-    {
-      id: 5,
-      name: "Mediterranean Keto Plan",
-      description: "Low-carb Mediterranean diet with healthy fats",
-      duration: "4 weeks",
-      calories: "1800-2000",
-      type: "Uploaded",
-      status: "Active",
-      progress: 75,
-      startDate: "2024-01-15",
-      endDate: "2024-02-15",
-      category: "Keto"
-    },
-    {
-      id: 6,
-      name: "Plant-Based Protein Focus",
-      description: "High-protein vegan meal plan for muscle building",
-      duration: "6 weeks",
-      calories: "2200-2400",
-      type: "AI Generated",
-      status: "Completed",
-      progress: 100,
-      startDate: "2023-12-01",
-      endDate: "2024-01-15",
-      category: "Plant-Based"
-    }
-  ];
+
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -626,21 +639,16 @@ const DietPlans = () => {
 
     try {
       const userId = user?.id;
-      
       // Create a text file from the content
       const textBlob = new Blob([textContent], { type: 'text/plain' });
       const fileName = `text-plan-${Date.now()}.txt`;
       const filePath = `diet-plans/${userId || 'demo'}/${fileName}`;
 
-      console.log('Uploading text content as file:', fileName);
-
-      // Upload the text as a file
+      // Upload the text file to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('nutrition-files')
         .upload(filePath, textBlob);
-
       if (uploadError) {
-        console.error('Upload error:', uploadError);
         throw uploadError;
       }
 
@@ -648,8 +656,6 @@ const DietPlans = () => {
       const { data } = supabase.storage
         .from('nutrition-files')
         .getPublicUrl(filePath);
-
-      console.log('Text file uploaded successfully, URL:', data.publicUrl);
 
       // Save file info to database
       const { error: dbError } = await supabase
@@ -661,7 +667,6 @@ const DietPlans = () => {
           file_type: 'text/plain',
           plan_name: textPlanName || 'Text Diet Plan'
         });
-
       if (dbError) {
         console.error('Database error:', dbError);
       }
@@ -683,14 +688,12 @@ const DietPlans = () => {
       setTextPlanName("");
     } catch (error) {
       console.error('Text submission error:', error);
-      
       // Update the file status to error
       setSessionUploads(prev => prev.map(f => 
         f.id === tempFile.id 
           ? { ...f, status: 'error' }
           : f
       ));
-
       toast({
         title: "Submission failed",
         description: error instanceof Error ? error.message : "Failed to submit text. Please try again.",
@@ -797,1394 +800,373 @@ const DietPlans = () => {
     }
   };
 
+  // Activate or deactivate a plan
+  const setPlanActive = async (planId: string, isActive: boolean) => {
+    try {
+      if (!user) return;
+      // If activating, deactivate all others first
+      if (isActive) {
+        await supabase
+          .from('nutrition_plans')
+          .update({ is_active: false })
+          .eq('user_id', user.id)
+          .neq('id', planId);
+      }
+      // Set the selected plan's active status
+      const { error } = await supabase
+        .from('nutrition_plans')
+        .update({ is_active: isActive })
+        .eq('id', planId);
+      if (error) {
+        toast({ title: 'Error', description: 'Failed to update plan status', variant: 'destructive' });
+      } else {
+        await loadGeneratedPlans();
+        toast({ title: isActive ? 'Plan Activated' : 'Plan Deactivated', description: isActive ? 'This plan is now active.' : 'This plan is now inactive.' });
+      }
+    } catch (error) {
+      console.error('Error updating plan active status:', error);
+    }
+  };
+
   return (
-    <div className="space-y-8">
-      {/* Header Section */}
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">AI-Powered Diet Plans</h1>
-        <p className="text-gray-600">Discover personalized nutrition plans powered by advanced AI algorithms</p>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-emerald-50">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
+        <h1>Diet Plans - Testing</h1>
       </div>
+        <div className="text-center space-y-3 sm:space-y-4 py-4 sm:py-6 lg:py-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl mb-2 sm:mb-4 shadow-lg">
+            <Brain className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent tracking-tight">
+            AI-Powered Diet Plans
+          </h1>
+          <p className="text-sm sm:text-base lg:text-lg text-gray-700 max-w-2xl mx-auto leading-relaxed px-4">
+            Discover personalized nutrition plans powered by advanced AI algorithms,
+            tailored to your unique health goals and dietary preferences
+          </p>
+        </div>
 
-      {/* Status Overview Cards - Redesigned like Lab Reports */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-        <div>
-                <p className="text-sm font-medium text-purple-700 mb-1">Your AI Plans</p>
-                <p className="text-3xl font-bold text-purple-900">{generatedPlans.length}</p>
-                <p className="text-xs text-purple-600 mt-1">Generated plans</p>
+        {/* Colorful Status Overview Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+            <CardContent className="p-4 sm:p-6 lg:p-8">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1 sm:space-y-2">
+                  <p className="text-xs sm:text-sm font-semibold text-purple-100 uppercase tracking-wider">Your AI Plans</p>
+                  <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{generatedPlans.length}</p>
+                  <p className="text-xs sm:text-sm text-purple-100">Generated plans</p>
+                </div>
+                <div className="h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                  <Brain className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" />
+                </div>
+              </div>
+              <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-purple-400/30">
+                <div className="flex items-center text-xs sm:text-sm text-purple-100">
+                  <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                  <span>AI-generated nutrition plans</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+            <CardContent className="p-4 sm:p-6 lg:p-8">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1 sm:space-y-2">
+                  <p className="text-xs sm:text-sm font-semibold text-blue-100 uppercase tracking-wider">Active Plans</p>
+                  <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{generatedPlans.filter(plan => plan.is_active).length}</p>
+                  <p className="text-xs sm:text-sm text-blue-100">Currently following</p>
+                </div>
+                <div className="h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                  <Activity className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" />
+                </div>
+              </div>
+              <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-blue-400/30">
+                <div className="flex items-center text-xs sm:text-sm text-blue-100">
+                  <Heart className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                  <span>Active nutrition tracking</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white sm:col-span-2 lg:col-span-1">
+            <CardContent className="p-4 sm:p-6 lg:p-8">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1 sm:space-y-2">
+                  <p className="text-xs sm:text-sm font-semibold text-emerald-100 uppercase tracking-wider">Uploads Today</p>
+                  <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{sessionUploads.length}</p>
+                  <p className="text-xs sm:text-sm text-emerald-100">Files processed</p>
+                </div>
+                <div className="h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                  <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" />
+                </div>
+              </div>
+              <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-emerald-400/30">
+                <div className="flex items-center text-xs sm:text-sm text-emerald-100">
+                  <Award className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                  <span>Health goals achieved</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-              <div className="h-12 w-12 bg-purple-200 rounded-lg flex items-center justify-center">
-                <Brain className="h-6 w-6 text-purple-700" />
-        </div>
+
+        {/* Colorful Search and Filters */}
+        <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200">
+          <CardContent className="p-4 sm:p-6 lg:p-8">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex items-center space-x-3 mb-4 sm:mb-6">
+                <div className="h-8 w-8 sm:h-10 sm:w-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center shadow-md">
+                  <Search className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Search & Discover</h3>
+                  <p className="text-sm sm:text-base text-gray-700">Find the perfect nutrition plan for your goals</p>
+                </div>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Search AI plans, dietary preferences, or health goals..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-12 pr-4 py-3 text-base border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-xl shadow-sm"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-700 mb-1">Active Plans</p>
-                <p className="text-3xl font-bold text-blue-900">{myActivePlans.filter(p => p.status === 'Active').length}</p>
-                <p className="text-xs text-blue-600 mt-1">Currently following</p>
+        {/* Colorful Upload Section */}
+        <Card className="border-0 shadow-lg bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200">
+          <CardHeader className="pb-4 sm:pb-6 border-b border-emerald-100">
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-xl flex items-center justify-center shadow-md">
+                <Upload className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <div className="h-12 w-12 bg-blue-200 rounded-lg flex items-center justify-center">
-                <Activity className="h-6 w-6 text-blue-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-emerald-700 mb-1">Completed Plans</p>
-                <p className="text-3xl font-bold text-emerald-900">{myActivePlans.filter(p => p.status === 'Completed').length}</p>
-                <p className="text-xs text-emerald-600 mt-1">Successfully finished</p>
-              </div>
-              <div className="h-12 w-12 bg-emerald-200 rounded-lg flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-emerald-700" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filters */}
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search AI plans, dietary preferences, or health goals..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Upload Section */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
-            <Upload className="h-5 w-5 mr-3 text-blue-600" />
-            Upload Your Diet Plan
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="p-6">
-            <Tabs defaultValue="file" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-lg mb-6">
-                <TabsTrigger value="file" className="flex items-center data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload File
-                </TabsTrigger>
-                <TabsTrigger value="text" className="flex items-center data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Type className="h-4 w-4 mr-2" />
-                  Enter Text
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="file" className="space-y-4">
-                <div className="space-y-4">
-      <div>
-                    <Label htmlFor="plan-name" className="text-sm font-medium text-gray-700 flex items-center">
-                      Plan Name <span className="text-red-500 ml-1">*</span>
-                    </Label>
-                    <Input
-                      id="plan-name"
-                      type="text"
-                      placeholder="e.g., Mediterranean Diet Plan (required)"
-                      value={planName}
-                      onChange={e => setPlanName(e.target.value)}
-                      disabled={uploading}
-                      className={`mt-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${
-                        planName.trim() === '' && selectedFile ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''
-                      }`}
-                    />
-                    {planName.trim() === '' && selectedFile && (
-                      <p className="text-xs text-red-500 mt-1">Plan name is required to upload</p>
-                    )}
-                  </div>
-                  
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
-                    <div className="flex flex-col items-center space-y-4">
-                      <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Upload className="h-8 w-8 text-blue-600" />
-                      </div>
-                  <div>
-                        <Button
-                          onClick={triggerFileUpload}
-                          disabled={uploading}
-                          variant="outline"
-                          className="border-gray-300 hover:border-blue-500 hover:bg-blue-50"
-                        >
-                          Choose File or Drag & Drop
-                        </Button>
-                        <p className="text-sm text-gray-500 mt-2">
-                          PDF, DOC, TXT, or any document type (Max 10MB)
-                        </p>
-                        <Input
-                          ref={fileInputRef}
-                          type="file"
-                          onChange={handleFileSelect}
-                          className="hidden"
-                          disabled={uploading}
-                        />
-                  </div>
-                      
-                      {/* Selected File Display */}
-                      {selectedFile && (
-                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <FileText className="h-4 w-4 text-blue-600" />
-                              <span className="text-sm font-medium text-blue-900">{selectedFile.name}</span>
-                              <span className="text-xs text-blue-600">({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)</span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedFile(null);
-                                if (fileInputRef.current) {
-                                  fileInputRef.current.value = '';
-                                }
-                              }}
-                              className="text-blue-600 hover:text-blue-800"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Upload Button */}
-                      {selectedFile && (
-                        <Button
-                          onClick={handleFileUpload}
-                          disabled={uploading || !planName.trim()}
-                          className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
-                        >
-                          {uploading ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Uploading...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="h-4 w-4 mr-2" />
-                              Upload Diet Plan
-                            </>
-                          )}
-                        </Button>
-                      )}
-                      
-                      {uploading && (
-                        <div className="flex items-center space-x-2 mt-4">
-                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                          <span className="text-sm text-gray-600">Uploading...</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="text" className="space-y-4">
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="text-plan-name" className="text-sm font-medium text-gray-700 flex items-center">
-                      Plan Name <span className="text-red-500 ml-1">*</span>
-                    </Label>
-                    <Input
-                      id="text-plan-name"
-                      type="text"
-                      placeholder="e.g., My Custom Diet Plan (required)"
-                      value={textPlanName}
-                      onChange={e => setTextPlanName(e.target.value)}
-                      disabled={submittingText}
-                      className={`mt-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500 ${
-                        textPlanName.trim() === '' && textContent.trim() ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''
-                      }`}
-                    />
-                    {textPlanName.trim() === '' && textContent.trim() && (
-                      <p className="text-xs text-red-500 mt-1">Plan name is required to save</p>
-                    )}
-                  </div>
-                  <div>
-                    <Label htmlFor="diet-text" className="text-sm font-medium text-gray-700">
-                      Diet Plan Content
-                    </Label>
-                    <Textarea
-                      id="diet-text"
-                      placeholder="Enter your diet plan, meal schedule, ingredients list, or any nutrition information here..."
-                      value={textContent}
-                      onChange={(e) => setTextContent(e.target.value)}
-                      className="mt-1 min-h-[200px] resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      disabled={submittingText}
-                    />
-                  </div>
-                  <Button
-                    onClick={handleTextSubmit}
-                    disabled={submittingText || !textContent.trim() || !textPlanName.trim()}
-                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
-                  >
-                    {submittingText ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Type className="h-4 w-4 mr-2" />
-                        Save Diet Plan
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-
-            {/* Session Uploads */}
-            {sessionUploads.length > 0 && (
-              <div className="mt-6 space-y-3">
-                <h4 className="font-medium text-gray-900">This Session's Uploads:</h4>
-                {sessionUploads.map((file) => (
-                  <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="flex items-center space-x-3">
-                      {getFileIcon(file.fileType)}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {file.planName}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {file.name} • {file.size}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {getUploadStatusBadge(file.status)}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeUpload(file.id)}
-                        className="text-gray-400 hover:text-red-500"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* AI-Generated Plans Section (Main Feature) */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
-              <Brain className="h-5 w-5 mr-3 text-purple-600" />
-              AI-Generated Plans
-            </CardTitle>
-            <div className="flex items-center space-x-2">
-              <Badge variant="outline" className="text-xs">
-                {generatedPlans.length} Available
-                    </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (!user) return;
-                    
-                    // Delete all plans for the user
-                    const { error } = await supabase
-                      .from('nutrition_plans')
-                      .delete()
-                      .eq('user_id', user.id);
-                    
-                    if (error) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to clear plans",
-                        variant: "destructive"
-                      });
-                    } else {
-                      await loadGeneratedPlans();
-                      toast({
-                        title: "Success",
-                        description: "All plans cleared. Generate a new plan to see improved content!",
-                      });
-                    }
-                  } catch (error) {
-                    console.error('Error clearing plans:', error);
-                  }
-                }}
-                className="text-orange-600 border-orange-300 hover:bg-orange-50"
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Clear All
-              </Button>
-              <Button
-                onClick={() => {
-                  console.log('Generate My AI Plan button clicked in DietPlans');
-                  setShowPlanForm(true);
-                }}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white relative z-10"
-                size="sm"
-                style={{ pointerEvents: 'auto' }}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Generate My AI Plan
-              </Button>
-                  </div>
-                </div>
-          
-
-              </CardHeader>
-        <CardContent className="p-0">
-          {/* AI Plan Generation Form */}
-          {showPlanForm && (
-            <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <Brain className="h-5 w-5 mr-2 text-purple-600" />
-                  Create Your AI Plan
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPlanForm(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-                  </div>
-              <p className="text-gray-600 mb-6">Tell us about your goals and preferences to generate a personalized plan</p>
-              
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Plan Type */}
-                  <div className="space-y-2">
-                    <Label htmlFor="plan-type" className="flex items-center">
-                      Plan Type <span className="text-red-500 ml-1">*</span>
-                    </Label>
-                    <Select value={planPreferences.planType} onValueChange={(value) => handleInputChange('planType', value)}>
-                      <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                        <SelectValue placeholder="Select plan type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {planTypes.map((type) => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Duration */}
-                  <div className="space-y-2">
-                    <Label htmlFor="duration" className="flex items-center">
-                      Duration <span className="text-red-500 ml-1">*</span>
-                    </Label>
-                    <Select value={planPreferences.duration} onValueChange={(value) => handleInputChange('duration', value)}>
-                      <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                        <SelectValue placeholder="Select duration" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {durations.map((duration) => (
-                          <SelectItem key={duration} value={duration}>{duration}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Target Calories */}
-                  <div className="space-y-2">
-                    <Label htmlFor="target-calories" className="flex items-center">
-                      Target Daily Calories <span className="text-red-500 ml-1">*</span>
-                    </Label>
-                    <Input
-                      id="target-calories"
-                      type="number"
-                      placeholder="e.g., 1800"
-                      value={planPreferences.targetCalories}
-                      onChange={(e) => handleInputChange('targetCalories', e.target.value)}
-                      className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Activity Level */}
-                  <div className="space-y-2">
-                    <Label htmlFor="activity-level" className="flex items-center">
-                      Activity Level <span className="text-red-500 ml-1">*</span>
-                    </Label>
-                    <Select value={planPreferences.activityLevel} onValueChange={(value) => handleInputChange('activityLevel', value)}>
-                      <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
-                        <SelectValue placeholder="Select activity level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activityLevels.map((level) => (
-                          <SelectItem key={level} value={level}>{level}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Dietary Restrictions */}
-                <div className="space-y-2">
-                  <Label htmlFor="dietary-restrictions">Dietary Restrictions</Label>
-                  <Input
-                    id="dietary-restrictions"
-                    placeholder="e.g., vegetarian, gluten-free, dairy-free"
-                    value={planPreferences.dietaryRestrictions}
-                    onChange={(e) => handleInputChange('dietaryRestrictions', e.target.value)}
-                    className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Health Goals */}
-                <div className="space-y-2">
-                  <Label htmlFor="health-goals">Health Goals</Label>
-                  <Textarea
-                    id="health-goals"
-                    placeholder="e.g., lose weight, build muscle, improve energy, manage diabetes"
-                    value={planPreferences.healthGoals}
-                    onChange={(e) => handleInputChange('healthGoals', e.target.value)}
-                    className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                    rows={2}
-                  />
-                </div>
-
-                {/* Special Requirements */}
-                <div className="space-y-2">
-                  <Label htmlFor="special-requirements">Special Requirements</Label>
-                  <Textarea
-                    id="special-requirements"
-                    placeholder="e.g., food allergies, medical conditions, specific preferences"
-                    value={planPreferences.specialRequirements}
-                    onChange={(e) => handleInputChange('specialRequirements', e.target.value)}
-                    className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                    rows={2}
-                  />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex justify-end space-x-3 pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowPlanForm(false)}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => generateAIPlan(planPreferences)}
-                    disabled={generating}
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                  >
-                    {generating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Generating Plan...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate My AI Plan
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* My Active Plans Section */}
-          {generatedPlans.some(plan => plan.is_active) && (
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <CheckCircle className="h-5 w-5 mr-2 text-green-600" />
-                  My Active Plan
-                </h3>
-                <Badge className="bg-green-100 text-green-800 border-green-200">
-                  Currently Following
-                </Badge>
-              </div>
-              
-              {loadingPlans ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="flex items-center space-x-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-green-600" />
-                    <span className="text-gray-600">Loading your active plan...</span>
-                  </div>
-                </div>
-              ) : (
-                generatedPlans
-                  .filter(plan => plan.is_active)
-                  .map((plan) => (
-                    <TooltipProvider key={plan.id}>
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <h3 className="font-semibold text-gray-900">{plan.title}</h3>
-                                  <Badge className="bg-green-600 text-white text-xs">
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    Active
-                                  </Badge>
-                                </div>
-                                <p className="text-sm text-gray-600 mb-2">{plan.description}</p>
-                                <div className="flex items-center space-x-4 text-xs text-gray-500">
-                                  <span className="flex items-center">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    {plan.duration}
-                                  </span>
-                                  <span className="flex items-center">
-                                    <Target className="h-3 w-3 mr-1" />
-                                    {plan.calories} cal/day
-                                  </span>
-                                  <span className="flex items-center">
-                                    <Calendar className="h-3 w-3 mr-1" />
-                                    {new Date(plan.created_at).toLocaleDateString()}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedPlan(plan);
-                                    setShowPlanDetails(true);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-700"
-                                >
-                                  <Eye className="h-4 w-4 mr-1" />
-                      View Details
-                    </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    try {
-                                      const { data: { user } } = await supabase.auth.getUser();
-                                      if (!user) return;
-                                      
-                                      console.log('Deactivating active plan:', plan.id);
-                                      const { error } = await supabase
-                                        .from('nutrition_plans')
-                                        .update({ is_active: false })
-                                        .eq('id', plan.id);
-                                      
-                                      if (error) {
-                                        console.error('Error deactivating plan:', error);
-                                        toast({
-                                          title: "Error",
-                                          description: "Failed to deactivate plan",
-                                          variant: "destructive"
-                                        });
-                                      } else {
-                                        console.log('Plan deactivated successfully');
-                                        await loadGeneratedPlans();
-                                        toast({
-                                          title: "Plan Deactivated",
-                                          description: "This plan is no longer active",
-                                        });
-                                      }
-                                    } catch (error) {
-                                      console.error('Error deactivating plan:', error);
-                                      toast({
-                                        title: "Error",
-                                        description: "Failed to update plan status",
-                                        variant: "destructive"
-                                      });
-                                    }
-                                  }}
-                                  className="text-red-600 border-red-300 hover:bg-red-50"
-                                >
-                                  <X className="h-4 w-4 mr-1" />
-                                  Deactivate
-                    </Button>
-                  </div>
-                </div>
-                            
-                            {/* Plan Details */}
-                            {plan.plan_content && (
-                              <div className="space-y-3 mb-3">
-                                {plan.plan_content.dailyMeals && plan.plan_content.dailyMeals.length > 0 ? (
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-700 mb-2">Sample Day 1 Meals:</p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                      {plan.plan_content.dailyMeals[0].meals.slice(0, 4).map((meal: any, index: number) => {
-                                        const date = new Date(plan.plan_content.dailyMeals[0].date);
-                                        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                                        const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                        
-                                        return (
-                                          <TooltipProvider key={index}>
-                                            <Tooltip delayDuration={300}>
-                                              <TooltipTrigger asChild>
-                                                <div className="flex items-center space-x-2 p-2 bg-white rounded border border-green-200 hover:bg-green-50 transition-colors cursor-pointer">
-                                                  <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                                                    <span className="text-white text-xs font-bold">
-                                                      {index === 0 ? dayName.charAt(0) : meal.mealType.charAt(0).toUpperCase()}
-                                                    </span>
-                                                  </div>
-                                                  <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center space-x-2">
-                                                      <span className="text-xs font-medium text-green-600 uppercase tracking-wide">
-                                                        {meal.mealType}
-                                                      </span>
-                                                      <span className="text-xs text-gray-500">•</span>
-                                                      <span className="text-xs font-medium text-gray-700">
-                                                        {meal.calories} cal
-                                                      </span>
-                                                    </div>
-                                                    <span className="text-sm text-gray-700 font-medium block truncate">
-                                                      {meal.name}
-                                                    </span>
-                                                    {index === 0 && (
-                                                      <span className="text-xs text-gray-500">
-                                                        {dayName}, {monthDay}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </TooltipTrigger>
-                                              <TooltipContent className="max-w-sm p-3">
-                                                <div className="space-y-2">
-                                                  <div>
-                                                    <h6 className="font-semibold text-gray-900 text-sm">{meal.name}</h6>
-                                                    <p className="text-xs text-gray-600 mt-1">{meal.description}</p>
-                                                  </div>
-                                                  
-                                                  {meal.ingredients && meal.ingredients.length > 0 && (
-                                                    <div>
-                                                      <span className="text-xs font-medium text-gray-700">Ingredients:</span>
-                                                      <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                                                        {meal.ingredients.slice(0, 5).map((ingredient: string, i: number) => (
-                                                          <li key={i} className="flex items-center">
-                                                            <span className="w-1 h-1 bg-gray-400 rounded-full mr-2"></span>
-                                                            {ingredient}
-                                                          </li>
-                                                        ))}
-                                                        {meal.ingredients.length > 5 && (
-                                                          <li className="text-gray-500 italic">+{meal.ingredients.length - 5} more</li>
-                                                        )}
-                                                      </ul>
-        </div>
-                                                  )}
-                                                  
-                                                  {meal.instructions && (
-                                                    <div>
-                                                      <span className="text-xs font-medium text-gray-700">Instructions:</span>
-                                                      <p className="text-xs text-gray-600 mt-1 line-clamp-3">
-                                                        {meal.instructions}
-                                                      </p>
-      </div>
-                                                  )}
-                                                  
-                                                  {meal.macros && (
-                                                    <div className="flex space-x-3 text-xs pt-1 border-t border-gray-200">
-                                                      <span className="text-blue-600 font-medium">Protein: {meal.macros.protein}g</span>
-                                                      <span className="text-green-600 font-medium">Carbs: {meal.macros.carbs}g</span>
-                                                      <span className="text-orange-600 font-medium">Fat: {meal.macros.fat}g</span>
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          </TooltipProvider>
-                                        );
-                                      })}
-                                    </div>
-                                    <div className="mt-3 p-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded border border-green-200">
-                                      <div className="flex items-center justify-between text-xs">
-                                        <span className="text-green-700 font-medium">
-                                          📅 {plan.plan_content.dailyMeals.length}-Day Calendar
-                                        </span>
-                                        <span className="text-gray-600">
-                                          {plan.plan_content.dailyMeals.length * 4} total meals
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : plan.plan_content.meals && plan.plan_content.meals.length > 0 ? (
-      <div>
-                                    <p className="text-sm font-medium text-gray-700 mb-2">Sample Meals:</p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                      {plan.plan_content.meals.slice(0, 4).map((meal: any, index: number) => (
-                                        <div key={index} className="flex items-center space-x-2 p-2 bg-white rounded border border-green-200">
-                                          <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                                            <span className="text-white text-xs font-bold">
-                                              {meal.mealType.charAt(0).toUpperCase()}
-                                            </span>
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <div className="flex items-center space-x-2">
-                                              <span className="text-xs font-medium text-green-600 uppercase tracking-wide">
-                                                {meal.mealType}
-                                              </span>
-                                              <span className="text-xs text-gray-500">•</span>
-                                              <span className="text-xs font-medium text-gray-700">
-                                                {meal.calories} cal
-                                              </span>
-                                            </div>
-                                            <span className="text-sm text-gray-700 font-medium block truncate">
-                                              {meal.name}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-2">
-                                      Full plan includes {plan.plan_content.meals.length} meals
-                                    </p>
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-gray-500">No meal content available</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-md p-4">
-                <div className="space-y-3">
-                            <div>
-                              <h4 className="font-semibold text-gray-900 mb-2">{plan.title}</h4>
-                              <p className="text-sm text-gray-600 mb-3">{plan.description}</p>
-                              <div className="flex items-center space-x-4 text-xs text-gray-500 mb-3">
-                                <span>📅 {plan.duration}</span>
-                                <span>🔥 {plan.calories} cal/day</span>
-                                <span>📊 {plan.plan_content?.dailyMeals?.length * 4 || 0} meals</span>
-                  </div>
-                            </div>
-                            
-                            {plan.plan_content?.dailyMeals && plan.plan_content.dailyMeals.length > 0 && (
-                              <div>
-                                <h5 className="font-medium text-gray-800 mb-2">Sample Day 1 Meals:</h5>
-                                <div className="space-y-2 max-h-48 overflow-y-auto">
-                                  {plan.plan_content.dailyMeals[0].meals.slice(0, 4).map((meal: any, mealIndex: number) => (
-                                    <div key={mealIndex} className="border-l-2 border-green-200 pl-3 py-2">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs font-medium text-green-600 uppercase">
-                                          {meal.mealType}
-                                        </span>
-                                        <span className="text-xs text-gray-600">
-                                          {meal.calories} cal
-                                        </span>
-                                      </div>
-                                      <h6 className="text-sm font-semibold text-gray-900 mb-1">
-                                        {meal.name}
-                                      </h6>
-                                      <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                                        {meal.description}
-                                      </p>
-                                      {meal.ingredients && meal.ingredients.length > 0 && (
-                                        <div className="mb-2">
-                                          <span className="text-xs font-medium text-gray-700">Ingredients:</span>
-                                          <p className="text-xs text-gray-600 line-clamp-1">
-                                            {meal.ingredients.slice(0, 3).join(', ')}
-                                            {meal.ingredients.length > 3 && '...'}
-                                          </p>
-                                        </div>
-                                      )}
-                                      {meal.macros && (
-                                        <div className="flex space-x-2 text-xs">
-                                          <span className="text-blue-600">P: {meal.macros.protein}g</span>
-                                          <span className="text-green-600">C: {meal.macros.carbs}g</span>
-                                          <span className="text-orange-600">F: {meal.macros.fat}g</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                                <div className="mt-3 pt-2 border-t border-gray-200">
-                                  <p className="text-xs text-gray-500">
-                                    Click "View Details" to see the complete 30-day plan with all recipes and instructions.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ))
-              )}
-            </div>
-          )}
-
-          {/* All Plans Section */}
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                <List className="h-5 w-5 mr-2 text-gray-600" />
-                All Plans ({generatedPlans.length})
-              </h3>
-              
-              {/* Search Section */}
-              <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="Search plans..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                    className="w-64 pr-10"
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleSearch}
-                    disabled={isSearching}
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
-                  >
-                    {isSearching ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Search className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-            
-            {loadingPlans ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
-                  <span className="text-gray-600">Loading your AI plans...</span>
-                </div>
-              </div>
-            ) : generatedPlans.length > 0 ? (
-              generatedPlans
-                .filter(plan => !plan.is_active) // Only show inactive plans in this section
-                .map((plan, index) => (
-                  <TooltipProvider key={plan.id}>
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer mb-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <h3 className="font-semibold text-gray-900">{plan.title}</h3>
-                              </div>
-                              <p className="text-sm text-gray-600 mb-2">{plan.description}</p>
-                              <div className="flex items-center space-x-4 text-xs text-gray-500">
-                                <span className="flex items-center">
-                                  <Clock className="h-3 w-3 mr-1" />
-                                  {plan.duration}
-                                </span>
-                                <span className="flex items-center">
-                                  <Target className="h-3 w-3 mr-1" />
-                                  {plan.calories} cal/day
-                                </span>
-                                <span className="flex items-center">
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  {new Date(plan.created_at).toLocaleDateString()}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedPlan(plan);
-                                  setShowPlanDetails(true);
-                                }}
-                                className="text-blue-600 hover:text-blue-700"
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                View Details
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={async () => {
-                                  try {
-                                    const { data: { user } } = await supabase.auth.getUser();
-                                    if (!user) return;
-                                    
-                                    console.log('Activating plan:', plan.id);
-                                    
-                                    // First, deactivate all other plans for this user
-                                    const { error: deactivateError } = await supabase
-                                      .from('nutrition_plans')
-                                      .update({ is_active: false })
-                                      .eq('user_id', user.id);
-                                    
-                                    if (deactivateError) {
-                                      console.error('Error deactivating other plans:', deactivateError);
-                                      toast({
-                                        title: "Error",
-                                        description: "Failed to deactivate other plans",
-                                        variant: "destructive"
-                                      });
-                                      return;
-                                    }
-                                    
-                                    // Then activate this plan
-                                    const { error: activateError } = await supabase
-                                      .from('nutrition_plans')
-                                      .update({ is_active: true })
-                                      .eq('id', plan.id);
-                                    
-                                    if (activateError) {
-                                      console.error('Error activating plan:', activateError);
-                                      toast({
-                                        title: "Error",
-                                        description: "Failed to activate plan",
-                                        variant: "destructive"
-                                      });
-                                    } else {
-                                      console.log('Plan activated successfully');
-                                      await loadGeneratedPlans();
-                                      toast({
-                                        title: "Plan Activated!",
-                                        description: "This plan is now your active plan",
-                                      });
-                                    }
-                                  } catch (error) {
-                                    console.error('Error activating plan:', error);
-                                    toast({
-                                      title: "Error",
-                                      description: "Failed to update plan status",
-                                      variant: "destructive"
-                                    });
-                                  }
-                                }}
-                                className="text-green-600 border-green-300 hover:bg-green-50"
-                              >
-                                <Play className="h-4 w-4 mr-1" />
-                                Activate
-                              </Button>
-                            </div>
-                          </div>
-                          
-                          {/* Plan Details */}
-                          {plan.plan_content && (
-                            <div className="space-y-3 mb-3">
-                              {plan.plan_content.dailyMeals && plan.plan_content.dailyMeals.length > 0 ? (
-                                <div>
-                                  <p className="text-sm font-medium text-gray-700 mb-2">Sample Day 1 Meals:</p>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    {plan.plan_content.dailyMeals[0].meals.slice(0, 4).map((meal: any, index: number) => {
-                                      const date = new Date(plan.plan_content.dailyMeals[0].date);
-                                      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                                      const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                      
-                                      return (
-                                        <TooltipProvider key={index}>
-                                          <Tooltip delayDuration={300}>
-                                            <TooltipTrigger asChild>
-                                              <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded border border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer">
-                                                <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
-                                                  <span className="text-white text-xs font-bold">
-                                                    {index === 0 ? dayName.charAt(0) : meal.mealType.charAt(0).toUpperCase()}
-                                                  </span>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                  <div className="flex items-center space-x-2">
-                                                    <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">
-                                                      {meal.mealType}
-                                                    </span>
-                                                    <span className="text-xs text-gray-500">•</span>
-                                                    <span className="text-xs font-medium text-gray-700">
-                                                      {meal.calories} cal
-                                                    </span>
-                                                  </div>
-                                                  <span className="text-sm text-gray-700 font-medium block truncate">
-                                                    {meal.name}
-                                                  </span>
-                                                  {index === 0 && (
-                                                    <span className="text-xs text-gray-500">
-                                                      {dayName}, {monthDay}
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </TooltipTrigger>
-                                            <TooltipContent className="max-w-sm p-3">
-                                              <div className="space-y-2">
-                                                <div>
-                                                  <h6 className="font-semibold text-gray-900 text-sm">{meal.name}</h6>
-                                                  <p className="text-xs text-gray-600 mt-1">{meal.description}</p>
-                                                </div>
-                                                
-                                                {meal.ingredients && meal.ingredients.length > 0 && (
-                                                  <div>
-                                                    <span className="text-xs font-medium text-gray-700">Ingredients:</span>
-                                                    <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                                                      {meal.ingredients.slice(0, 5).map((ingredient: string, i: number) => (
-                                                        <li key={i} className="flex items-center">
-                                                          <span className="w-1 h-1 bg-gray-400 rounded-full mr-2"></span>
-                                                          {ingredient}
-                                                        </li>
-                                                      ))}
-                                                      {meal.ingredients.length > 5 && (
-                                                        <li className="text-gray-500 italic">+{meal.ingredients.length - 5} more</li>
-                                                      )}
-                                                    </ul>
-                                                  </div>
-                                                )}
-                                                
-                                                {meal.instructions && (
-                                                  <div>
-                                                    <span className="text-xs font-medium text-gray-700">Instructions:</span>
-                                                    <p className="text-xs text-gray-600 mt-1 line-clamp-3">
-                                                      {meal.instructions}
-                                                    </p>
-                                                  </div>
-                                                )}
-                                                
-                                                {meal.macros && (
-                                                  <div className="flex space-x-3 text-xs pt-1 border-t border-gray-200">
-                                                    <span className="text-blue-600 font-medium">Protein: {meal.macros.protein}g</span>
-                                                    <span className="text-green-600 font-medium">Carbs: {meal.macros.carbs}g</span>
-                                                    <span className="text-orange-600 font-medium">Fat: {meal.macros.fat}g</span>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      );
-                                    })}
-                                  </div>
-                                  <div className="mt-3 p-2 bg-gradient-to-r from-purple-50 to-blue-50 rounded border border-purple-200">
-                                    <div className="flex items-center justify-between text-xs">
-                                      <span className="text-purple-700 font-medium">
-                                        📅 {plan.plan_content.dailyMeals.length}-Day Calendar
-                                      </span>
-                                      <span className="text-gray-600">
-                                        {plan.plan_content.dailyMeals.length * 4} total meals
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : plan.plan_content.meals && plan.plan_content.meals.length > 0 ? (
-                                <div>
-                                  <p className="text-sm font-medium text-gray-700 mb-2">Sample Meals:</p>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    {plan.plan_content.meals.slice(0, 4).map((meal: any, index: number) => (
-                                      <div key={index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded border border-gray-200">
-                                        <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
-                                          <span className="text-white text-xs font-bold">
-                                            {meal.mealType.charAt(0).toUpperCase()}
-                                          </span>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">
-                                              {meal.mealType}
-                                            </span>
-                                            <span className="text-xs text-gray-500">•</span>
-                                            <span className="text-xs font-medium text-gray-700">
-                                              {meal.calories} cal
-                                            </span>
-                                          </div>
-                                          <span className="text-sm text-gray-700 font-medium block truncate">
-                                            {meal.name}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <p className="text-xs text-gray-500 mt-2">
-                                    Full plan includes {plan.plan_content.meals.length} meals
-                                  </p>
-                                </div>
-                              ) : (
-                                <p className="text-sm text-gray-500">No meal content available</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-md p-4">
-                        <div className="space-y-3">
-                          <div>
-                            <h4 className="font-semibold text-gray-900 mb-2">{plan.title}</h4>
-                            <p className="text-sm text-gray-600 mb-3">{plan.description}</p>
-                            <div className="flex items-center space-x-4 text-xs text-gray-500 mb-3">
-                              <span>📅 {plan.duration}</span>
-                              <span>🔥 {plan.calories} cal/day</span>
-                              <span>📊 {plan.plan_content?.dailyMeals?.length * 4 || 0} meals</span>
-                            </div>
-                          </div>
-                          
-                          {plan.plan_content?.dailyMeals && plan.plan_content.dailyMeals.length > 0 && (
-                            <div>
-                              <h5 className="font-medium text-gray-800 mb-2">Sample Day 1 Meals:</h5>
-                              <div className="space-y-2 max-h-48 overflow-y-auto">
-                                {plan.plan_content.dailyMeals[0].meals.slice(0, 4).map((meal: any, mealIndex: number) => (
-                                  <div key={mealIndex} className="border-l-2 border-purple-200 pl-3 py-2">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-xs font-medium text-purple-600 uppercase">
-                                        {meal.mealType}
-                                      </span>
-                                      <span className="text-xs text-gray-600">
-                                        {meal.calories} cal
-                                      </span>
-                                    </div>
-                                    <h6 className="text-sm font-semibold text-gray-900 mb-1">
-                                      {meal.name}
-                                    </h6>
-                                    <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                                      {meal.description}
-                                    </p>
-                                    {meal.ingredients && meal.ingredients.length > 0 && (
-                                      <div className="mb-2">
-                                        <span className="text-xs font-medium text-gray-700">Ingredients:</span>
-                                        <p className="text-xs text-gray-600 line-clamp-1">
-                                          {meal.ingredients.slice(0, 3).join(', ')}
-                                          {meal.ingredients.length > 3 && '...'}
-                                        </p>
-                                      </div>
-                                    )}
-                                    {meal.macros && (
-                                      <div className="flex space-x-2 text-xs">
-                                        <span className="text-blue-600">P: {meal.macros.protein}g</span>
-                                        <span className="text-green-600">C: {meal.macros.carbs}g</span>
-                                        <span className="text-orange-600">F: {meal.macros.fat}g</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="mt-3 pt-2 border-t border-gray-200">
-                                <p className="text-xs text-gray-500">
-                                  Click "View Details" to see the complete 30-day plan with all recipes and instructions.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))
-            ) : (
-              <div className="text-center py-12">
-                <div className="flex flex-col items-center space-y-4">
-                  <div className="h-16 w-16 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full flex items-center justify-center">
-                    <Brain className="h-8 w-8 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No AI Plans Yet</h3>
-                    <p className="text-gray-600 mb-4">Generate your first personalized nutrition plan to get started</p>
-                    <Button
-                      onClick={() => setShowPlanForm(true)}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Generate Your First Plan
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Search Results Section */}
-            {searchResults.length > 0 && (
-              <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <Search className="h-5 w-5 mr-2 text-blue-600" />
-                    Search Results ({searchResults.length})
-                  </h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSearchResults([]);
-                      setSearchQuery('');
-                    }}
-                    className="text-gray-600 border-gray-300 hover:bg-gray-50"
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Clear Search
-                  </Button>
-                </div>
-                
-                <div className="space-y-4">
-                  {searchResults.map((result) => (
-                    <div key={result.id} className="bg-white border border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <h4 className="font-semibold text-gray-900">{result.title}</h4>
-                            <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
-                              {Math.round(result.similarity * 100)}% Match
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-2">{result.description}</p>
-                          <div className="flex items-center space-x-4 text-xs text-gray-500">
-                            <span className="flex items-center">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {result.duration}
-                            </span>
-                            <span className="flex items-center">
-                              <Target className="h-3 w-3 mr-1" />
-                              {result.calories} cal/day
-                            </span>
-                            <span className="flex items-center">
-                              <Calendar className="h-3 w-3 mr-1" />
-                              {new Date(result.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Find the full plan data and show details
-                            const fullPlan = generatedPlans.find(p => p.id === result.id);
-                            if (fullPlan) {
-                              setSelectedPlan(fullPlan);
-                              setShowPlanDetails(true);
-                            }
-                          }}
-                          className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View Details
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* My Active Plans Section (Secondary) */}
-      {myActivePlans.length > 0 && (
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
-                <Activity className="h-5 w-5 mr-3 text-blue-600" />
-                My Active Plans
-              </CardTitle>
-              <div className="flex items-center space-x-2">
-                <Badge variant="outline" className="text-xs">
-                  {myActivePlans.length} Total
-                </Badge>
+              <div className="flex-1">
+                <CardTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
+                  Upload Your Diet Plan
+                </CardTitle>
+                <p className="text-sm sm:text-base text-gray-700 mt-1">Share your existing nutrition plans or create new ones</p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y divide-gray-100">
-              {myActivePlans.map((plan, index) => (
-                <div 
-                  key={plan.id} 
-                  className="p-6 hover:bg-gray-50 transition-colors duration-200"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <div className="flex items-center space-x-2">
-                          {plan.type === "AI Generated" ? (
-                            <Sparkles className="h-4 w-4 text-purple-500" />
-                          ) : (
-                            <Upload className="h-4 w-4 text-blue-500" />
-                          )}
-                          <h3 className="font-semibold text-gray-900 truncate">{plan.name}</h3>
-                        </div>
-                        <Badge variant={plan.type === "AI Generated" ? "default" : "secondary"}>
-                          {plan.type}
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                    <div className="flex items-center space-x-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>{plan.duration}</span>
-                    </div>
-                        <span>•</span>
-                        <span>{plan.calories} calories</span>
-                        <span>•</span>
-                        <span className="text-blue-600 font-medium">{plan.category}</span>
-                    </div>
-
-                      <p className="text-gray-600 mb-3">{plan.description}</p>
-
-                      {/* Progress */}
-                      <div className="space-y-2 mb-3">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Progress</span>
-                          <span className="text-gray-900 font-medium">{plan.progress}%</span>
-                  </div>
-                        <Progress value={plan.progress} className="h-2" />
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3 ml-4">
-                      {getStatusBadge(plan.status)}
-                      <Button variant="outline" size="sm" className="border-gray-300">
-                        <Download className="h-4 w-4 mr-1" />
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* AI Plan Generator CTA */}
-      <Card className="border-0 shadow-sm bg-gradient-to-r from-purple-50 to-blue-50">
-        <CardContent className="p-8 text-center">
-          <div className="max-w-2xl mx-auto">
-            <div className="h-16 w-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lightbulb className="h-8 w-8 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">
-              Ready for Your Personalized AI Plan?
+          {/* Upload Section */}
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Upload className="h-5 w-5 mr-2 text-emerald-600" />
+              Upload Your Diet Plan
             </h3>
-            <p className="text-gray-600 mb-6">
-              Our advanced AI analyzes your goals, preferences, and health data to create a nutrition plan that's uniquely yours.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button 
-                onClick={() => {
-                  console.log('Bottom Generate My AI Plan button clicked');
-                  setShowPlanForm(true);
-                }}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg"
-              >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                Generate My AI Plan
-              </Button>
-              <Button variant="outline" className="border-gray-300 hover:bg-gray-50">
-                Learn More
-                  </Button>
+            <div className="flex flex-col md:flex-row gap-6">
+              {/* File Upload */}
+              <div className="flex-1">
+                <Label htmlFor="plan-file">Upload File</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  id="plan-file"
+                  accept=".pdf,.txt,.doc,.docx,.jpg,.png"
+                  className="block w-full mt-2 border border-gray-300 rounded-lg p-2"
+                  onChange={handleFileSelect}
+                />
+                <Input
+                  placeholder="Plan Name"
+                  value={planName}
+                  onChange={e => setPlanName(e.target.value)}
+                  className="mt-2"
+                />
+                <Button
+                  onClick={handleFileUpload}
+                  disabled={uploading || !selectedFile}
+                  className="mt-2"
+                >
+                  {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                  Upload
+                </Button>
+              </div>
+              {/* Text Upload */}
+              <div className="flex-1">
+                <Label htmlFor="plan-text">Paste Diet Plan Text</Label>
+                <Textarea
+                  id="plan-text"
+                  placeholder="Paste your diet plan here..."
+                  value={textContent}
+                  onChange={e => setTextContent(e.target.value)}
+                  rows={6}
+                  className="mt-2"
+                />
+                <Input
+                  placeholder="Plan Name"
+                  value={textPlanName}
+                  onChange={e => setTextPlanName(e.target.value)}
+                  className="mt-2"
+                />
+                <Button
+                  onClick={handleTextSubmit}
+                  disabled={submittingText || !textContent}
+                  className="mt-2"
+                >
+                  {submittingText ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                  Submit Text
+                </Button>
+              </div>
             </div>
+            {/* Uploaded Files List */}
+            {sessionUploads.length > 0 && (
+              <div className="mt-6">
+                <h4 className="font-semibold mb-2">Recent Uploads</h4>
+                <ul className="space-y-2">
+                  {sessionUploads.map(file => (
+                    <li key={file.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg p-2">
+                      <div className="flex items-center gap-2">
+                        {getFileIcon(file.fileType)}
+                        <span className="font-medium">{file.planName}</span>
+                        <span className="text-xs text-gray-500">({file.size})</span>
+                        {getUploadStatusBadge(file.status)}
+                      </div>
+                      {file.url && (
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-xs underline">View</a>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => removeUpload(file.id)} className="text-gray-400 hover:text-red-500">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* All Plans Section with View Button */}
+          <div className="p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Sparkles className="h-5 w-5 mr-2 text-purple-600" />
+              All Diet Plans
+            </h3>
+            {loadingPlans ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+              </div>
+            ) : (
+              generatedPlans.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">No plans found. Generate or upload a new plan!</div>
+              ) : (
+                generatedPlans.map((plan) => (
+                  <div key={plan.id} className="mb-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-900">{plan.title}</h4>
+                        <p className="text-sm text-gray-700">{plan.description}</p>
+                        {/* Professional Price Display */}
+                        {plan.price && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="inline-block bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold px-3 py-1 rounded-full shadow-sm text-base">
+                              ${parseFloat(plan.price).toFixed(2)}
+                            </span>
+                            <span className="text-xs text-gray-500 font-medium">per plan</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setSelectedPlan(plan); setShowPlanDetails(true); }}
+                          className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                        >
+                          <Calendar className="h-4 w-4 mr-1" /> View
+                        </Button>
+                        {getStatusBadge(plan.is_active ? 'Active' : 'Available')}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deletePlan(plan.id)}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        {plan.is_active ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPlanActive(plan.id, false)}
+                            className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                          >
+                            Deactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPlanActive(plan.id, true)}
+                            className="text-green-600 border-green-300 hover:bg-green-50"
+                          >
+                            Activate
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Professional AI Plan Generator CTA */}
+      <Card className="border border-gray-200 shadow-xl bg-gradient-to-br from-purple-50 via-white to-blue-50 overflow-hidden">
+        <CardContent className="p-12 text-center relative">
+          {/* Background decoration */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-100/20 to-blue-100/20"></div>
+          <div className="relative z-10">
+            <div className="max-w-3xl mx-auto">
+              <div className="h-20 w-20 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                <Lightbulb className="h-10 w-10 text-white" />
+              </div>
+              <h3 className="text-3xl font-bold text-gray-900 mb-4 tracking-tight">
+                Ready for Your Personalized AI Plan?
+              </h3>
+              <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-2xl mx-auto">
+                Our advanced AI analyzes your goals, preferences, and health data to create a nutrition plan that's uniquely yours.
+                Start your journey to better health today.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <Button
+                  onClick={() => {
+                    console.log('Bottom Generate My AI Plan button clicked');
+                    setShowPlanForm(true);
+                  }}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-xl hover:shadow-2xl transition-all duration-300 px-8 py-3 text-lg font-semibold"
+                >
+                  <Sparkles className="h-5 w-5 mr-2" />
+                  Generate My AI Plan
+                </Button>
+                <Button variant="outline" className="border-gray-300 hover:bg-gray-50 px-8 py-3 text-lg font-semibold">
+                  Learn More
+                </Button>
+              </div>
+              <div className="mt-8 flex items-center justify-center space-x-8 text-sm text-gray-500">
+                <div className="flex items-center">
+                  <CheckCircle className="h-4 w-4 mr-2 text-emerald-500" />
+                  <span>Personalized nutrition</span>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex items-center">
+                  <CheckCircle className="h-4 w-4 mr-2 text-emerald-500" />
+                  <span>AI-powered recommendations</span>
+                </div>
+                <div className="flex items-center">
+                  <CheckCircle className="h-4 w-4 mr-2 text-emerald-500" />
+                  <span>Health goal tracking</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Plan Details Modal */}
       <Dialog open={showPlanDetails} onOpenChange={setShowPlanDetails}>
@@ -2194,7 +1176,7 @@ const DietPlans = () => {
               <div className="flex items-center space-x-3">
                 <div className="h-10 w-10 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
                   <Calendar className="h-6 w-6 text-white" />
-        </div>
+                </div>
                 <div>
                   <div className="text-2xl font-bold text-gray-900">
                     {selectedPlan?.title || "AI Plan Details"}
@@ -2257,7 +1239,7 @@ const DietPlans = () => {
               >
                 <Download className="h-4 w-4 mr-1" />
                 Export Calendar
-            </Button>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -2293,7 +1275,7 @@ const DietPlans = () => {
               >
                 <Trash2 className="h-4 w-4 mr-1" />
                 Clear All Plans
-            </Button>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -2415,9 +1397,8 @@ const DietPlans = () => {
                                       <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">
                                         {meal.mealType}
                                       </span>
-                                      <span className="text-xs text-gray-500">•</span>
-                                      <span className="text-xs font-medium text-gray-700">
-                                        {meal.calories} cal
+                                      <span className="text-xs text-gray-600">
+                                          {meal.calories} cal
                                       </span>
                                     </div>
                                     <h6 className="text-sm font-semibold text-gray-900 truncate">
@@ -2506,8 +1487,8 @@ const DietPlans = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
+      </div>
+    );
 };
 
 export default DietPlans;

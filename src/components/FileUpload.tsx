@@ -303,14 +303,22 @@ const FileUpload = () => {
             </div>
 
             <Tabs defaultValue="file" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-lg mb-6">
-                <TabsTrigger value="file" className="flex items-center data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload File
+              <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-lg mb-6 h-auto">
+                <TabsTrigger 
+                  value="file" 
+                  className="flex items-center justify-center gap-2 py-3 px-4 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm min-h-[48px] transition-all duration-200"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline">Upload File</span>
+                  <span className="sm:hidden">Upload</span>
                 </TabsTrigger>
-                <TabsTrigger value="text" className="flex items-center data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <Type className="h-4 w-4 mr-2" />
-                  Enter Text
+                <TabsTrigger 
+                  value="text" 
+                  className="flex items-center justify-center gap-2 py-3 px-4 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm min-h-[48px] transition-all duration-200"
+                >
+                  <Type className="h-4 w-4" />
+                  <span className="hidden sm:inline">Enter Text</span>
+                  <span className="sm:hidden">Text</span>
                 </TabsTrigger>
               </TabsList>
               

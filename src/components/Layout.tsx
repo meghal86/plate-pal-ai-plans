@@ -11,9 +11,13 @@ import {
   Menu,
   Settings,
   Baby,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 import Header from "./Header";
+import MobileBottomNav from "./MobileBottomNav";
+import MobileTestingPanel from "./MobileTestingPanel";
+
 import { useUser } from "@/contexts/UserContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -28,13 +32,30 @@ const Layout = ({ children, showSidebar = true }: LayoutProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, loading } = useUser();
+  const { profile, loading, refreshProfile } = useUser();
 
-  // Get user profile from context
+  // Get user profile from context with enhanced fallback
   const userProfile = profile ? {
-    full_name: profile.full_name || "User",
+    full_name: (() => {
+      // Enhanced fallback logic for full_name
+      if (profile.full_name && profile.full_name !== "User") {
+        return profile.full_name;
+      }
+      // Extract from email if available
+      if (profile.email) {
+        const emailPrefix = profile.email.split('@')[0];
+        return emailPrefix
+          .replace(/[._]/g, ' ')
+          .replace(/\b\w/g, l => l.toUpperCase())
+          .trim();
+      }
+      return "User";
+    })(),
     member_type: "Premium Member"
   } : null;
+
+  // Debug logging for user profile
+  console.log('🎯 Layout render - loading:', loading, 'profile:', profile, 'userProfile:', userProfile);
 
   // Update active tab based on current location
   useEffect(() => {
@@ -93,29 +114,72 @@ const Layout = ({ children, showSidebar = true }: LayoutProps) => {
     </nav>
   );
 
-  const UserProfileSection = () => (
-    <div className="bg-white/80 backdrop-blur-sm rounded-lg p-4 border border-white/30">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-orange-400 to-red-400 rounded-full flex items-center justify-center">
-          <Users className="h-5 w-5 text-white" />
+  const UserProfileSection = () => {
+    // Get the display name with fallback logic
+    const getDisplayName = () => {
+      if (loading) return "Loading...";
+      
+      // Debug logging
+      console.log('🔍 Layout getDisplayName - profile:', profile);
+      console.log('🔍 Layout getDisplayName - profile.full_name:', profile?.full_name);
+      console.log('🔍 Layout getDisplayName - profile.email:', profile?.email);
+      
+      // Try profile first
+      if (profile?.full_name && profile.full_name !== "User") {
+        console.log('✅ Using profile.full_name:', profile.full_name);
+        return profile.full_name;
+      }
+      
+      // Fallback to extracting from email if available
+      if (profile?.email) {
+        const emailPrefix = profile.email.split('@')[0];
+        const extractedName = emailPrefix
+          .replace(/[._]/g, ' ')
+          .replace(/\b\w/g, l => l.toUpperCase())
+          .trim();
+        console.log('✅ Using extracted name from email:', extractedName);
+        return extractedName;
+      }
+      
+      console.log('⚠️ Falling back to "User"');
+      return "User";
+    };
+
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-lg p-4 border border-white/30">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-r from-orange-400 to-red-400 rounded-full flex items-center justify-center">
+            <Users className="h-5 w-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium text-gray-800">
+              {getDisplayName()}
+            </p>
+            <p className="text-sm text-gray-500">
+              {loading ? "..." : "Premium Member"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={() => refreshProfile()}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                title="Refresh Profile"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            )}
+            <button
+              onClick={() => handleNavigation({ id: 'settings', path: '/profile' })}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-        <div className="flex-1">
-          <p className="font-medium text-gray-800">
-            {loading ? "Loading..." : userProfile?.full_name || "User"}
-          </p>
-          <p className="text-sm text-gray-500">
-            {loading ? "..." : userProfile?.member_type || "Member"}
-          </p>
-        </div>
-        <button
-          onClick={() => handleNavigation({ id: 'settings', path: '/profile' })}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <Settings className="h-4 w-4" />
-        </button>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="dashboard-page min-h-screen bg-white">
@@ -200,12 +264,12 @@ const Layout = ({ children, showSidebar = true }: LayoutProps) => {
       )}
 
       {/* Main Content Area */}
-      <main className={`${showSidebar ? 'lg:ml-64' : ''} min-h-screen bg-gradient-to-br from-orange-50 via-yellow-50 to-green-50 relative overflow-hidden`}>
+      <main className={`${showSidebar ? 'lg:ml-64' : ''} min-h-screen bg-gradient-to-br from-orange-50 via-yellow-50 to-green-50 relative overflow-hidden ios-viewport-fix`}>
         {/* Header */}
         <Header title="NourishPlate" showUserInfo={true} />
         
         {/* Ensure content doesn't get hidden behind sidebar */}
-        <div className="relative w-full h-full">
+        <div className="relative w-full h-full safe-area-padding">
           {/* Background Elements */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-10 left-10 w-20 h-20 bg-orange-400 rounded-full blur-xl"></div>
@@ -215,10 +279,18 @@ const Layout = ({ children, showSidebar = true }: LayoutProps) => {
           </div>
           
           {/* Content */}
-          <div className="relative z-10 lg:pt-0 pt-16">
+          <div className="relative z-10 lg:pt-0 pt-16 pb-20 lg:pb-0">
             {children}
           </div>
         </div>
+
+        {/* Mobile Bottom Navigation */}
+        <MobileBottomNav />
+
+        {/* Mobile Testing Panel (Development Only) */}
+        {process.env.NODE_ENV === 'development' && <MobileTestingPanel />}
+        
+
       </main>
     </div>
   );

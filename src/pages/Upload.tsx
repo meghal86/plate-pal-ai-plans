@@ -1,15 +1,11 @@
 
-import DietPlans from "@/components/DietPlans";
+import ProfessionalDietPlans from "@/components/ProfessionalDietPlans";
 import Layout from "@/components/Layout";
 
 const Upload = () => {
   return (
     <Layout showSidebar={true}>
-      <div className="p-8">
-        <div className="max-w-7xl mx-auto">
-          <DietPlans />
-        </div>
-      </div>
+      <ProfessionalDietPlans />
     </Layout>
   );
 };

@@ -282,9 +282,40 @@ function UserProvider({ children }: UserProviderProps) {
     }
   }, [profile?.user_id, user?.id]); // Only trigger when IDs change, not on every profile change
 
+  // EMERGENCY FIX: If profile exists but full_name is missing or "User", fix it immediately
+  useEffect(() => {
+    if (profile && (!profile.full_name || profile.full_name === "User") && user?.email) {
+      console.log('🚨 EMERGENCY FIX: Profile full_name is missing or "User", fixing now');
+      console.log('🔍 Current profile:', profile);
+      console.log('🔍 User email:', user.email);
+      
+      const emailPrefix = user.email.split('@')[0];
+      const extractedName = emailPrefix
+        .replace(/[._]/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase())
+        .trim();
+      
+      const fixedProfile = {
+        ...profile,
+        full_name: extractedName
+      };
+      
+      console.log('✅ EMERGENCY FIX: Setting fixed profile:', fixedProfile);
+      setProfile(fixedProfile);
+    }
+  }, [profile, user?.email]); // Trigger whenever profile or user email changes
+
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user?.id) {
       throw new Error('No user found');
+    }
+
+    // SAFETY CHECK: Prevent overwriting valid full_name with "User"
+    if (updates.full_name === "User" && profile?.full_name && profile.full_name !== "User") {
+      console.log('🛡️ SAFETY CHECK: Preventing overwrite of valid full_name with "User"');
+      console.log('🔍 Current profile.full_name:', profile.full_name);
+      console.log('🔍 Attempted update:', updates.full_name);
+      delete updates.full_name; // Remove the problematic update
     }
 
     try {
