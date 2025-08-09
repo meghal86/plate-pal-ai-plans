@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { generateDietPlan, generatePlanEmbedding } from "@/api/generate-diet-plan";
-import PlanCalendar from "./PlanCalendar";
+import AdultDietCalendar from "./AdultDietCalendar";
 import { 
   Brain, 
   Upload, 
@@ -1223,7 +1223,7 @@ const ProfessionalDietPlans: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="calendar" className="space-y-6 mt-8">
-            <PlanCalendar />
+            <AdultDietCalendar />
           </TabsContent>
         </Tabs>
 
@@ -1514,7 +1514,10 @@ const ProfessionalDietPlans: React.FC = () => {
 
                 <div className="flex items-center gap-3 pt-4 border-t">
                   <Button
-                    onClick={() => setActiveTab('calendar')}
+                    onClick={() => {
+                      setActiveTab('calendar');
+                      setShowPlanDetails(false);
+                    }}
                     className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
                   >
                     <Calendar className="h-4 w-4 mr-2" />

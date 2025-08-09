@@ -545,6 +545,7 @@ export type Database = {
           id: string
           notification_preferences: Json | null
           phone_number: string | null
+          preferences: Json | null
           updated_at: string | null
           user_id: string | null
           weight: number | null
@@ -563,6 +564,7 @@ export type Database = {
           id?: string
           notification_preferences?: Json | null
           phone_number?: string | null
+          preferences?: Json | null
           updated_at?: string | null
           user_id?: string | null
           weight?: number | null
@@ -581,6 +583,7 @@ export type Database = {
           id?: string
           notification_preferences?: Json | null
           phone_number?: string | null
+          preferences?: Json | null
           updated_at?: string | null
           user_id?: string | null
           weight?: number | null

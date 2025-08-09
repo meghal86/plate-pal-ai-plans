@@ -686,7 +686,7 @@ Format the response as JSON with the following structure:
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <ChefHat className="h-6 w-6 text-orange-500" />
@@ -710,9 +710,9 @@ Format the response as JSON with the following structure:
         </div>
         
         {/* Age Group Filter */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <Select value={selectedAgeGroup} onValueChange={setSelectedAgeGroup}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder={placeholders.selectAge} />
             </SelectTrigger>
             <SelectContent>
@@ -730,28 +730,30 @@ Format the response as JSON with the following structure:
             </SelectContent>
           </Select>
           
-          {/* Preferences Button */}
-          <Button 
-            variant="outline"
-            onClick={() => setShowPreferencesForm(true)}
-            className="border-orange-200 text-orange-600 hover:bg-orange-50"
-          >
-            <User className="h-4 w-4 mr-2" />
-            {selectedChild ? `${selectedChild.name}'s Prefs` : (isHindi ? "प्राथमिकताएं" : "Preferences")}
-          </Button>
-          
-          <Button
-            onClick={generateRecipe}
-            disabled={generating || !selectedChild}
-            className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
-          >
-            {generating ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4 mr-2" />
-            )}
-            {generating ? placeholders.generating : placeholders.generateRecipe}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {/* Preferences Button */}
+            <Button 
+              variant="outline"
+              onClick={() => setShowPreferencesForm(true)}
+              className="border-orange-200 text-orange-600 hover:bg-orange-50 w-full sm:w-auto"
+            >
+              <User className="h-4 w-4 mr-2" />
+              {selectedChild ? `${selectedChild.name}'s Prefs` : (isHindi ? "प्राथमिकताएं" : "Preferences")}
+            </Button>
+            
+            <Button
+              onClick={generateRecipe}
+              disabled={generating || !selectedChild}
+              className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white w-full sm:w-auto"
+            >
+              {generating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
+              {generating ? placeholders.generating : placeholders.generateRecipe}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -767,7 +769,7 @@ Format the response as JSON with the following structure:
           <p className="text-gray-600">{placeholders.noRecipes}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {recipes.map((recipe) => (
             <Card key={recipe.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               {/* Recipe Image */}
@@ -913,7 +915,7 @@ Format the response as JSON with the following structure:
                   <Heart className="h-4 w-4 text-red-500" />
                   Nutrition Information
                 </h4>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   <div className="text-center p-3 bg-blue-50 rounded-lg">
                     <div className="font-semibold text-blue-600">{selectedRecipe.nutrition_info.protein}g</div>
                     <div className="text-xs text-gray-600">Protein</div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import Layout from "@/components/Layout";
-import Dashboard from "@/components/Dashboard";
+import Dashboard from "@/pages/Dashboard";
 import DietPlans from "@/components/DietPlans";
 import Tracking from "@/components/Tracking";
 import Community from "@/components/Community";

@@ -239,7 +239,7 @@ Generate exactly ${duration} days with this level of variety.`;
     const data = await response.json();
     const aiResponse = data.candidates[0].content.parts[0].text;
 
-    // Clean up the response
+    // Clean up the response with more robust cleaning
     let cleanResponse = aiResponse.trim();
     
     // Remove markdown formatting if present
@@ -250,16 +250,73 @@ Generate exactly ${duration} days with this level of variety.`;
       cleanResponse = cleanResponse.replace(/```\n?/g, '');
     }
 
-    // Parse the JSON response
-    const planData = JSON.parse(cleanResponse);
+    // Remove any leading/trailing non-JSON content
+    const jsonStart = cleanResponse.indexOf('{');
+    const jsonEnd = cleanResponse.lastIndexOf('}');
     
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      cleanResponse = cleanResponse.substring(jsonStart, jsonEnd + 1);
+    }
+
+    // Additional cleaning for common AI response issues
+    cleanResponse = cleanResponse
+      .replace(/\n\s*\n/g, '\n') // Remove extra newlines
+      .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
+      .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+      .trim();
+
+    console.log('Cleaned response for parsing:', cleanResponse.substring(0, 200) + '...');
+
+    // Parse the JSON response with better error handling
+    let planData;
+    try {
+      planData = JSON.parse(cleanResponse);
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError);
+      console.error('Problematic response:', cleanResponse);
+      
+      // Try to fix common JSON issues and parse again
+      let fixedResponse = cleanResponse
+        .replace(/([{,]\s*)(\w+):/g, '$1"$2":') // Add quotes to unquoted keys
+        .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
+        .replace(/\\n/g, '\\\\n') // Escape newlines properly
+        .replace(/\n/g, ' ') // Replace actual newlines with spaces
+        .replace(/\t/g, ' ') // Replace tabs with spaces
+        .replace(/\s+/g, ' '); // Normalize whitespace
+      
+      try {
+        planData = JSON.parse(fixedResponse);
+        console.log('Successfully parsed after fixing JSON');
+      } catch (secondParseError) {
+        console.error('Second JSON Parse Error:', secondParseError);
+        throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
+      }
+    }
+    
+    // Validate the parsed data structure
+    if (!planData || typeof planData !== 'object') {
+      throw new Error('Invalid plan data structure');
+    }
+    
+    if (!planData.title || !planData.description || !planData.daily_plans || !Array.isArray(planData.daily_plans)) {
+      throw new Error('Missing required plan data fields');
+    }
+
+    // Validate each daily plan
+    for (let i = 0; i < planData.daily_plans.length; i++) {
+      const day = planData.daily_plans[i];
+      if (!day.breakfast || !day.lunch || !day.snack) {
+        throw new Error(`Day ${i + 1} is missing required meals`);
+      }
+    }
+
     // Add IDs and metadata
     const schoolPlan: KidsSchoolPlan = {
       id: `kids-plan-${Date.now()}`,
       kid_id: '', // Will be set when saving
       title: planData.title,
       description: planData.description,
-      duration: planData.duration,
+      duration: planData.duration || planData.daily_plans.length,
       created_at: new Date().toISOString(),
       daily_plans: planData.daily_plans.map((day: any, dayIndex: number) => ({
         ...day,
@@ -275,7 +332,19 @@ Generate exactly ${duration} days with this level of variety.`;
   } catch (error) {
     console.error('Error generating kids school plan:', error);
     
+    // Log additional context for debugging
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        preferences,
+        kidName,
+        duration
+      });
+    }
+    
     // Return fallback plan if API fails
+    console.log('Falling back to default meal plan');
     return generateFallbackKidsSchoolPlan(preferences, kidName, duration);
   }
 }

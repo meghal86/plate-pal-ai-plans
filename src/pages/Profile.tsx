@@ -192,6 +192,10 @@ const Profile = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/dashboard')}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Dashboard Settings
+                </Button>
                 <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/kids')}>
                   <Baby className="h-4 w-4 mr-2" />
                   Kids Zone

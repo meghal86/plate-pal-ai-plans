@@ -22,6 +22,7 @@ import {
 } from '@/api/generate-kids-meal-plan';
 import { notificationService, NotificationPreferences } from '@/services/notification-service';
 import { KidsMealPlansService } from '@/services/kids-meal-plans-service';
+import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { 
   ChefHat, 
@@ -75,7 +76,7 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
   const { user } = useUser();
   
   // State management
-  const [activeTab, setActiveTab] = useState('create');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<KidsSchoolPlan | null>(null);
@@ -87,6 +88,8 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
   const [selectedMeal, setSelectedMeal] = useState<KidsMeal | null>(null);
   const [replacingMeal, setReplacingMeal] = useState<{ dayIndex: number; mealType: string } | null>(null);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [showFullPlan, setShowFullPlan] = useState(false);
+  const [replacingMealInfo, setReplacingMealInfo] = useState<{ dayIndex: number; mealType: string } | null>(null);
 
   // Form state
   const [planDuration, setPlanDuration] = useState(7);
@@ -131,22 +134,46 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
 
   // Load saved plans and active plan on component mount
   useEffect(() => {
-    loadSavedPlans();
-    loadActivePlan();
-  }, [kidId]);
+    console.log('KidsSchoolMealPlanner useEffect triggered with:', { 
+      kidId, 
+      user: user?.id, 
+      kidName, 
+      kidAge 
+    });
+    if (kidId && user) {
+      loadSavedPlans();
+      loadActivePlan();
+    } else {
+      console.log('Missing required data:', { kidId: !!kidId, user: !!user });
+    }
+  }, [kidId, user]);
 
   const loadSavedPlans = async () => {
     try {
       setLoading(true);
+      console.log('Loading saved plans for kidId:', kidId);
+      
       const plans = await KidsMealPlansService.getMealPlansForKid(kidId);
+      console.log('Loaded plans:', plans);
       setSavedPlans(plans);
     } catch (error) {
       console.error('Error loading saved plans:', error);
-      toast({
-        title: "Failed to Load Plans",
-        description: "Could not load saved meal plans",
-        variant: "destructive"
-      });
+      
+      // Check if it's a table not found error
+      if (error instanceof Error && error.message.includes('relation "kids_meal_plans" does not exist')) {
+        toast({
+          title: "Database Setup Required",
+          description: "The meal plans table needs to be created. Please run the database migration.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Failed to Load Plans",
+          description: error instanceof Error ? error.message : "Could not load saved meal plans",
+          variant: "destructive"
+        });
+      }
+      setSavedPlans([]);
     } finally {
       setLoading(false);
     }
@@ -160,7 +187,7 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
         const planData = KidsMealPlansService.parsePlanData(plan.plan_data);
         setCurrentPlan(planData);
         setCurrentPlanId(plan.id);
-        setActiveTab('plan');
+        // Stay on dashboard to show the loaded plan
       }
     } catch (error) {
       console.error('Error loading active plan:', error);
@@ -214,7 +241,12 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
       const planData = KidsMealPlansService.parsePlanData(activatedPlan.plan_data);
       setCurrentPlan(planData);
       setCurrentPlanId(planId);
-      setActiveTab('plan');
+      // Stay on dashboard to show the activated plan
+
+      // Trigger calendar refresh by dispatching a custom event
+      window.dispatchEvent(new CustomEvent('mealPlanActivated', { 
+        detail: { kidId, planId } 
+      }));
 
       toast({
         title: "Plan Activated!",
@@ -296,15 +328,37 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
   const loadSavedPlan = async (planId: string) => {
     try {
       setLoading(true);
+      console.log('Loading saved plan with ID:', planId);
+      
       const plan = await KidsMealPlansService.getMealPlanById(planId);
+      console.log('Retrieved plan:', plan);
+      
       if (plan) {
         const planData = KidsMealPlansService.parsePlanData(plan.plan_data);
         const preferences = KidsMealPlansService.parsePreferences(plan.preferences);
         
+        console.log('Parsed plan data:', planData);
+        console.log('Parsed preferences:', preferences);
+        
         setCurrentPlan(planData);
         setCurrentPlanId(plan.id);
         setPlanPreferences(preferences);
-        setActiveTab('plan');
+        
+        console.log('State updated - currentPlan:', planData);
+        console.log('State updated - currentPlanId:', plan.id);
+        
+        toast({
+          title: "Plan Loaded",
+          description: `Loaded ${planData.title} with ${planData.daily_plans.length} days`,
+        });
+        
+        // Stay on dashboard to show the loaded plan
+      } else {
+        toast({
+          title: "Plan Not Found",
+          description: "The selected meal plan could not be found.",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Error loading plan:', error);
@@ -329,7 +383,7 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
       
       setCurrentPlan(plan);
       
-      // Automatically save the generated plan
+      // Automatically save and activate the generated plan
       const savedPlan = await KidsMealPlansService.saveMealPlan(
         kidId,
         plan,
@@ -337,9 +391,18 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
         user.id
       );
 
-      setSavedPlans(prev => [savedPlan, ...prev]);
+      // Automatically activate the new plan
+      const activatedPlan = await KidsMealPlansService.activateMealPlan(savedPlan.id);
+      
+      setSavedPlans(prev => [{ ...savedPlan, is_active: true }, ...prev]);
       setCurrentPlanId(savedPlan.id);
-      setActiveTab('plan');
+      setActivePlan(activatedPlan);
+      // Stay on dashboard to show the generated plan
+
+      // Trigger calendar refresh by dispatching a custom event
+      window.dispatchEvent(new CustomEvent('mealPlanActivated', { 
+        detail: { kidId, planId: savedPlan.id } 
+      }));
       
       toast({
         title: "School Meal Plan Generated & Saved!",
@@ -504,417 +567,107 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
         </CardHeader>
       </Card>
 
-      {/* Main Tabs */}
+      {/* Simplified 2-Tab Layout */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 gap-2 p-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl shadow-inner">
+        <TabsList className="grid w-full grid-cols-2 gap-2 p-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl shadow-inner">
           <TabsTrigger 
-            value="create" 
-            className="flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-300 hover:bg-white hover:shadow-md data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
+            value="dashboard" 
+            className="flex items-center gap-2 px-6 py-4 text-sm font-medium rounded-lg transition-all duration-300 hover:bg-white hover:shadow-md data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
           >
-            <Plus className="h-4 w-4" />
-            Create Plan
+            <ChefHat className="h-4 w-4" />
+            Meal Planning Dashboard
           </TabsTrigger>
           <TabsTrigger 
-            value="plans" 
-            className="flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-300 hover:bg-white hover:shadow-md data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
+            value="settings" 
+            className="flex items-center gap-2 px-6 py-4 text-sm font-medium rounded-lg transition-all duration-300 hover:bg-white hover:shadow-md data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
           >
-            <History className="h-4 w-4" />
-            My Plans
-          </TabsTrigger>
-          <TabsTrigger 
-            value="plan" 
-            className="flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-300 hover:bg-white hover:shadow-md data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
-          >
-            <Calendar className="h-4 w-4" />
-            Active Plan
-          </TabsTrigger>
-          <TabsTrigger 
-            value="notifications" 
-            className="flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-300 hover:bg-white hover:shadow-md data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white data-[state=active]:shadow-lg"
-          >
-            <Bell className="h-4 w-4" />
-            Notifications
+            <Settings className="h-4 w-4" />
+            Settings & Notifications
           </TabsTrigger>
         </TabsList>
 
-        {/* Create Plan Tab */}
-        <TabsContent value="create" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-orange-500" />
-                Create School Meal Plan
-              </CardTitle>
-              <CardDescription>
-                Generate a personalized 7-day school meal plan for {kidName} (Age {kidAge})
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Plan Duration Selection */}
-              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg text-blue-800 flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Plan Duration
+        {/* Unified Dashboard Tab */}
+        <TabsContent value="dashboard" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Plan Creation & Management */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Quick Plan Creation */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-orange-500" />
+                    Create New Meal Plan
                   </CardTitle>
-                  <CardDescription className="text-blue-700">
-                    Choose how many days you want in your meal plan
+                  <CardDescription>
+                    Generate a personalized school meal plan for {kidName} (Age {kidAge})
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <CardContent className="space-y-4">
+                  {/* Quick Duration Selection */}
+                  <div className="grid grid-cols-4 gap-2">
                     {[7, 14, 21, 30].map((days) => (
                       <Button
                         key={days}
                         variant={planDuration === days ? "default" : "outline"}
                         onClick={() => setPlanDuration(days)}
-                        className={`h-16 flex flex-col items-center justify-center ${
+                        size="sm"
+                        className={`h-12 flex flex-col ${
                           planDuration === days 
-                            ? "bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-lg" 
-                            : "hover:bg-blue-50 border-blue-200"
+                            ? "bg-gradient-to-br from-blue-500 to-indigo-500 text-white" 
+                            : "hover:bg-blue-50"
                         }`}
                       >
-                        <span className="text-2xl font-bold">{days}</span>
-                        <span className="text-xs">
-                          {days === 7 ? "1 Week" : days === 14 ? "2 Weeks" : days === 21 ? "3 Weeks" : "1 Month"}
-                        </span>
+                        <span className="font-bold">{days}</span>
+                        <span className="text-xs">days</span>
                       </Button>
                     ))}
                   </div>
-                  
-                  {/* Custom Duration Input */}
-                  <div className="mt-4 flex items-center gap-3">
-                    <Label htmlFor="custom-duration" className="text-sm font-medium text-blue-800">
-                      Custom Duration:
-                    </Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="custom-duration"
-                        type="number"
-                        min="1"
-                        max="90"
-                        value={planDuration}
-                        onChange={(e) => setPlanDuration(Math.max(1, Math.min(90, parseInt(e.target.value) || 7)))}
-                        className="w-20 text-center"
-                      />
-                      <span className="text-sm text-blue-700">days</span>
-                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
-                        Max: 90 days
-                      </Badge>
-                    </div>
+
+                  {/* Quick Preferences */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input
+                      placeholder="Allergies (comma separated)"
+                      onChange={(e) => handleArrayInputChange('allergies', e.target.value)}
+                      className="text-sm"
+                    />
+                    <Input
+                      placeholder="Favorite foods (comma separated)"
+                      onChange={(e) => handleArrayInputChange('favorites', e.target.value)}
+                      className="text-sm"
+                    />
                   </div>
 
-                  {/* Duration Info */}
-                  <div className="mt-3 p-3 bg-blue-100 rounded-lg">
-                    <div className="flex items-center gap-2 text-sm text-blue-800 mb-2">
-                      <Clock className="h-4 w-4" />
-                      <span className="font-medium">
-                        Your {planDuration}-day plan will include {planDuration * 3} total meals 
-                        ({planDuration} breakfasts, {planDuration} lunches, {planDuration} snacks)
-                      </span>
-                    </div>
-                    
-                    {/* Duration Recommendations */}
-                    <div className="text-xs text-blue-700">
-                      {planDuration <= 7 && "Perfect for trying out the meal planner"}
-                      {planDuration > 7 && planDuration <= 14 && "Great for reducing weekly meal planning stress"}
-                      {planDuration > 14 && planDuration <= 21 && "Ideal for establishing healthy eating routines"}
-                      {planDuration > 21 && "Excellent for long-term meal planning and maximum variety"}
-                    </div>
-                  </div>
+                  {/* Generate Button */}
+                  <Button 
+                    onClick={generatePlan}
+                    disabled={generating}
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
+                  >
+                    {generating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate {planDuration}-Day Plan
+                      </>
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
 
-              {/* Preferences Form */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Allergies */}
-                <div>
-                  <Label htmlFor="allergies">Allergies & Food Restrictions</Label>
-                  <Input
-                    id="allergies"
-                    placeholder="e.g., nuts, dairy, gluten (comma separated)"
-                    onChange={(e) => handleArrayInputChange('allergies', e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-
-                {/* Dislikes */}
-                <div>
-                  <Label htmlFor="dislikes">Foods {kidName} Dislikes</Label>
-                  <Input
-                    id="dislikes"
-                    placeholder="e.g., broccoli, fish, spicy food (comma separated)"
-                    onChange={(e) => handleArrayInputChange('dislikes', e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-
-                {/* Favorites */}
-                <div>
-                  <Label htmlFor="favorites">{kidName}'s Favorite Foods</Label>
-                  <Input
-                    id="favorites"
-                    placeholder="e.g., pasta, chicken, apples (comma separated)"
-                    onChange={(e) => handleArrayInputChange('favorites', e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-
-                {/* School Policy */}
-                <div>
-                  <Label htmlFor="school_policy">School Lunch Policy</Label>
-                  <Select onValueChange={(value) => handleInputChange('school_lunch_policy', value)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select school policy" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="packed_lunch">Packed lunch allowed</SelectItem>
-                      <SelectItem value="no_nuts">No nuts policy</SelectItem>
-                      <SelectItem value="no_heating">No heating available</SelectItem>
-                      <SelectItem value="vegetarian_only">Vegetarian only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Prep Time */}
-                <div>
-                  <Label htmlFor="prep_time">Maximum Prep Time</Label>
-                  <Select onValueChange={(value) => handleInputChange('prep_time_limit', value)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select prep time limit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5_minutes">5 minutes or less</SelectItem>
-                      <SelectItem value="15_minutes">15 minutes</SelectItem>
-                      <SelectItem value="30_minutes">30 minutes</SelectItem>
-                      <SelectItem value="no_limit">No time limit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Budget */}
-                <div>
-                  <Label htmlFor="budget">Budget Range</Label>
-                  <Select onValueChange={(value) => handleInputChange('budget_range', value)}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select budget range" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="budget">Budget-friendly</SelectItem>
-                      <SelectItem value="moderate">Moderate</SelectItem>
-                      <SelectItem value="premium">Premium ingredients</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Debug Info */}
+              <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
+                Debug: currentPlan={currentPlan ? 'YES' : 'NO'}, currentPlanId={currentPlanId || 'NONE'}, activePlan={activePlan?.id || 'NONE'}
               </div>
 
-              {/* Special Requirements */}
-              <div>
-                <Label htmlFor="special_requirements">Special Requirements</Label>
-                <Textarea
-                  id="special_requirements"
-                  placeholder="Any other special requirements, dietary needs, or preferences..."
-                  value={planPreferences.special_requirements}
-                  onChange={(e) => handleInputChange('special_requirements', e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-
-              {/* Generate Button */}
-              <Button 
-                onClick={generatePlan}
-                disabled={generating}
-                size="lg"
-                className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                    Generating {planDuration}-Day Plan...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-5 w-5 mr-2" />
-                    Generate {planDuration}-Day School Meal Plan
-                  </>
-                )}
-              </Button>
-              
-              {/* Plan Preview */}
-              {planDuration > 7 && (
-                <div className="mt-4 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="h-4 w-4 text-yellow-600" />
-                    <span className="font-medium text-yellow-800">Extended Plan Benefits</span>
-                  </div>
-                  <ul className="text-sm text-yellow-700 space-y-1">
-                    <li>• More variety with {planDuration * 3} unique meals</li>
-                    <li>• Reduced meal planning stress for {Math.ceil(planDuration / 7)} weeks</li>
-                    <li>• Better nutrition balance over longer period</li>
-                    {planDuration >= 30 && <li>• Monthly meal planning with seasonal variety</li>}
-                  </ul>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* My Plans Tab */}
-        <TabsContent value="plans" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <History className="h-5 w-5 text-blue-500" />
-                    Saved Meal Plans for {kidName}
-                  </CardTitle>
-                  <CardDescription>
-                    Manage your saved meal plans and activate the one you want to use
-                  </CardDescription>
-                </div>
-                <Button 
-                  onClick={loadSavedPlans}
-                  disabled={loading}
-                  size="sm"
-                  variant="outline"
-                  className="text-blue-700 border-blue-300"
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                  <span className="ml-2 text-gray-600">Loading plans...</span>
-                </div>
-              ) : savedPlans.length === 0 ? (
-                <div className="text-center py-12">
-                  <Archive className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No Saved Plans</h3>
-                  <p className="text-gray-600 mb-6">
-                    You haven't created any meal plans for {kidName} yet.
-                  </p>
-                  <Button 
-                    onClick={() => setActiveTab('create')}
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Your First Plan
-                  </Button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {savedPlans.map((plan) => (
-                    <Card key={plan.id} className={`relative ${plan.is_active ? 'ring-2 ring-green-500 bg-green-50' : ''}`}>
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge 
-                              variant={plan.is_active ? "default" : "outline"}
-                              className={plan.is_active ? "bg-green-500 text-white" : ""}
-                            >
-                              {plan.is_active ? (
-                                <>
-                                  <Play className="h-3 w-3 mr-1" />
-                                  Active
-                                </>
-                              ) : (
-                                <>
-                                  <Pause className="h-3 w-3 mr-1" />
-                                  Saved
-                                </>
-                              )}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {plan.duration} days
-                            </Badge>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deletePlan(plan.id)}
-                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <CardTitle className="text-lg">{plan.title}</CardTitle>
-                        <CardDescription className="text-sm line-clamp-2">
-                          {plan.description}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          <div className="text-xs text-gray-500">
-                            Created: {new Date(plan.created_at!).toLocaleDateString()}
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => loadSavedPlan(plan.id)}
-                              variant="outline"
-                              className="flex-1"
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View
-                            </Button>
-                            
-                            {plan.is_active ? (
-                              <Button
-                                size="sm"
-                                onClick={() => deactivatePlan(plan.id)}
-                                variant="outline"
-                                className="flex-1 text-orange-600 border-orange-300"
-                              >
-                                <Pause className="h-3 w-3 mr-1" />
-                                Deactivate
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                onClick={() => activatePlan(plan.id)}
-                                className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-                              >
-                                <Play className="h-3 w-3 mr-1" />
-                                Activate
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                      
-                      {plan.is_active && (
-                        <div className="absolute -top-2 -right-2">
-                          <div className="bg-green-500 text-white rounded-full p-1">
-                            <Crown className="h-4 w-4" />
-                          </div>
-                        </div>
-                      )}
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Plan View Tab */}
-        <TabsContent value="plan" className="space-y-6">
-          {currentPlan ? (
-            <div className="space-y-6">
-              {/* Plan Header */}
-              <Card className={`${activePlan?.id === currentPlanId ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'}`}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+              {/* Active Plan Display */}
+              {currentPlan && (
+                <Card className={`${activePlan?.id === currentPlanId ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'}`}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <CardTitle className={activePlan?.id === currentPlanId ? 'text-green-800' : 'text-blue-800'}>
@@ -923,7 +676,7 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                           {activePlan?.id === currentPlanId && (
                             <Badge className="bg-green-500 text-white">
                               <Crown className="h-3 w-3 mr-1" />
-                              Active Plan
+                              Active
                             </Badge>
                           )}
                         </div>
@@ -931,165 +684,658 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                           {currentPlan.description}
                         </CardDescription>
                       </div>
+                      <div className="flex items-center gap-2">
+                        {currentPlanId && activePlan?.id !== currentPlanId && (
+                          <Button 
+                            size="sm" 
+                            onClick={() => activatePlan(currentPlanId)}
+                            disabled={loading}
+                            className="bg-green-500 hover:bg-green-600 text-white"
+                          >
+                            <Play className="h-3 w-3 mr-1" />
+                            Activate
+                          </Button>
+                        )}
+                        
+                        {currentPlanId && activePlan?.id === currentPlanId && (
+                          <Button 
+                            size="sm" 
+                            onClick={() => deactivatePlan(currentPlanId)}
+                            disabled={loading}
+                            variant="outline"
+                            className="text-orange-600 border-orange-300"
+                          >
+                            <Pause className="h-3 w-3 mr-1" />
+                            Deactivate
+                          </Button>
+                        )}
+                      </div>
                     </div>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Show first few days as preview */}
+                    <div className="space-y-4">
+                      {currentPlan.daily_plans.slice(0, 3).map((day, dayIndex) => (
+                        <div key={day.day} className="border rounded-lg p-4 bg-white/50">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-sm">
+                              Day {day.day} - {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </h4>
+                            <Badge variant="outline" className="text-xs">
+                              {day.total_calories} cal
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="relative group text-center p-2 bg-yellow-50 rounded text-xs hover:bg-yellow-100 transition-colors">
+                              <div className="text-lg mb-1">🌅</div>
+                              <div className="font-medium">{day.breakfast.name}</div>
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setSelectedMeal(day.breakfast);
+                                    setShowMealDialog(true);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => replaceMeal(dayIndex, 'breakfast')}
+                                  disabled={generating}
+                                  className="h-5 w-5 p-0"
+                                >
+                                  {generating ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="relative group text-center p-2 bg-green-50 rounded text-xs hover:bg-green-100 transition-colors">
+                              <div className="text-lg mb-1">🥪</div>
+                              <div className="font-medium">{day.lunch.name}</div>
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setSelectedMeal(day.lunch);
+                                    setShowMealDialog(true);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => replaceMeal(dayIndex, 'lunch')}
+                                  disabled={generating}
+                                  className="h-5 w-5 p-0"
+                                >
+                                  {generating ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="relative group text-center p-2 bg-purple-50 rounded text-xs hover:bg-purple-100 transition-colors">
+                              <div className="text-lg mb-1">🍎</div>
+                              <div className="font-medium">{day.snack.name}</div>
+                              <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setSelectedMeal(day.snack);
+                                    setShowMealDialog(true);
+                                  }}
+                                  className="h-5 w-5 p-0"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => replaceMeal(dayIndex, 'snack')}
+                                  disabled={generating}
+                                  className="h-5 w-5 p-0"
+                                >
+                                  {generating ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {currentPlan.daily_plans.length > 3 && (
+                        <div className="text-center">
+                          <div className="text-sm text-gray-500 mb-2">
+                            ... and {currentPlan.daily_plans.length - 3} more days
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowFullPlan(true)}
+                            className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View Full Plan ({currentPlan.daily_plans.length} days)
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Right Column: Saved Plans & Quick Actions */}
+            <div className="space-y-6">
+              {/* Saved Plans */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <History className="h-4 w-4 text-blue-500" />
+                      My Plans
+                    </CardTitle>
                     <div className="flex items-center gap-2">
-                      {!currentPlanId && (
-                        <Button 
-                          size="sm" 
-                          onClick={savePlan}
-                          disabled={loading}
-                          className="bg-blue-500 hover:bg-blue-600 text-white"
-                        >
-                          {loading ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                          ) : (
-                            <Save className="h-4 w-4 mr-1" />
-                          )}
-                          Save Plan
-                        </Button>
-                      )}
-                      
-                      {currentPlanId && activePlan?.id !== currentPlanId && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => activatePlan(currentPlanId)}
-                          disabled={loading}
-                          className="bg-green-500 hover:bg-green-600 text-white"
-                        >
-                          {loading ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                          ) : (
-                            <Play className="h-4 w-4 mr-1" />
-                          )}
-                          Activate
-                        </Button>
-                      )}
-                      
-                      {currentPlanId && activePlan?.id === currentPlanId && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => deactivatePlan(currentPlanId)}
-                          disabled={loading}
-                          variant="outline"
-                          className="text-orange-600 border-orange-300"
-                        >
-                          {loading ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                          ) : (
-                            <Pause className="h-4 w-4 mr-1" />
-                          )}
-                          Deactivate
-                        </Button>
-                      )}
-                      
-                      <Button size="sm" variant="outline" className={activePlan?.id === currentPlanId ? 'text-green-700 border-green-300' : 'text-blue-700 border-blue-300'}>
-                        <Download className="h-4 w-4 mr-1" />
-                        Export
+                      <Button 
+                        onClick={loadSavedPlans}
+                        disabled={loading}
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                      >
+                        {loading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
                       </Button>
-                      <Button size="sm" variant="outline" className={activePlan?.id === currentPlanId ? 'text-green-700 border-green-300' : 'text-blue-700 border-blue-300'}>
-                        <Share2 className="h-4 w-4 mr-1" />
-                        Share
+                      <Button 
+                        onClick={async () => {
+                          console.log('Testing database connection...');
+                          console.log('Current user:', user);
+                          console.log('Current kidId:', kidId);
+                          
+                          try {
+                            // Test 1: Check current user session
+                            const { data: session } = await supabase.auth.getSession();
+                            console.log('Auth session:', session);
+                            
+                            // Test 2: Simple test query
+                            const { data, error } = await supabase
+                              .from('kids_meal_plans')
+                              .select('id, title')
+                              .limit(1);
+                            
+                            console.log('Query result:', { data, error });
+                            
+                            if (error) {
+                              console.error('Database error details:', {
+                                code: error.code,
+                                message: error.message,
+                                details: error.details,
+                                hint: error.hint
+                              });
+                              
+                              if (error.code === '42P01') {
+                                toast({
+                                  title: "Table Missing",
+                                  description: "The kids_meal_plans table doesn't exist. Please run the SQL migration.",
+                                  variant: "destructive"
+                                });
+                              } else if (error.code === 'PGRST301') {
+                                toast({
+                                  title: "Permission Error",
+                                  description: "RLS policy is blocking access. Check your permissions.",
+                                  variant: "destructive"
+                                });
+                              } else {
+                                toast({
+                                  title: "Database Error",
+                                  description: `${error.code}: ${error.message}`,
+                                  variant: "destructive"
+                                });
+                              }
+                            } else {
+                              toast({
+                                title: "Database OK",
+                                description: `Table exists and is accessible. Found ${data?.length || 0} records.`,
+                              });
+                            }
+                          } catch (err) {
+                            console.error('Test error:', err);
+                            toast({
+                              title: "Test Failed",
+                              description: err instanceof Error ? err.message : "Unknown error",
+                              variant: "destructive"
+                            });
+                          }
+                        }}
+                        size="sm"
+                        variant="outline"
+                        className="text-xs px-2 h-6"
+                      >
+                        Test
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                    </div>
+                  ) : savedPlans.length === 0 ? (
+                    <div className="text-center py-6">
+                      <Archive className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">No saved plans yet</p>
+                      <p className="text-xs text-gray-500 mt-1">Create a meal plan to get started!</p>
+                      <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-xs text-amber-700">
+                          💡 If you're having trouble loading plans, the database table might need to be created.
+                          <br />
+                          Please run the SQL script: <code className="bg-amber-100 px-1 rounded">fix_kids_meal_plans_table.sql</code>
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {savedPlans.map((plan) => (
+                        <div key={plan.id} className={`p-3 rounded-lg border ${plan.is_active ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant={plan.is_active ? "default" : "outline"}
+                                className={`text-xs ${plan.is_active ? "bg-green-500 text-white" : ""}`}
+                              >
+                                {plan.is_active ? "Active" : "Saved"}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {plan.duration}d
+                              </Badge>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deletePlan(plan.id)}
+                              className="h-5 w-5 p-0 text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <h4 className="font-medium text-sm mb-1 line-clamp-1">{plan.title}</h4>
+                          <p className="text-xs text-gray-600 mb-2 line-clamp-2">{plan.description}</p>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              onClick={() => loadSavedPlan(plan.id)}
+                              variant="outline"
+                              className="flex-1 h-7 text-xs"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View
+                            </Button>
+                            {!plan.is_active && (
+                              <Button
+                                size="sm"
+                                onClick={() => activatePlan(plan.id)}
+                                className="flex-1 h-7 text-xs bg-green-500 hover:bg-green-600 text-white"
+                              >
+                                <Play className="h-3 w-3 mr-1" />
+                                Activate
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
               </Card>
 
-              {/* Daily Plans */}
-              <div className="grid grid-cols-1 gap-6">
+              {/* Quick Stats */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Quick Stats</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Total Plans</span>
+                      <Badge variant="outline">{savedPlans.length}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Active Plan</span>
+                      <Badge variant={activePlan ? "default" : "outline"} className={activePlan ? "bg-green-500 text-white" : ""}>
+                        {activePlan ? "Yes" : "None"}
+                      </Badge>
+                    </div>
+                    {currentPlan && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Current Duration</span>
+                        <Badge variant="outline">{currentPlan.daily_plans.length} days</Badge>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Settings & Notifications Tab */}
+        <TabsContent value="settings" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Advanced Preferences */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-purple-500" />
+                  Advanced Preferences
+                </CardTitle>
+                <CardDescription>
+                  Detailed settings for meal plan generation
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <Label htmlFor="dislikes">Foods {kidName} Dislikes</Label>
+                    <Input
+                      id="dislikes"
+                      placeholder="e.g., broccoli, fish, spicy food"
+                      onChange={(e) => handleArrayInputChange('dislikes', e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="school_policy">School Lunch Policy</Label>
+                    <Select onValueChange={(value) => handleInputChange('school_lunch_policy', value)}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select school policy" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="packed_lunch">Packed lunch allowed</SelectItem>
+                        <SelectItem value="no_nuts">No nuts policy</SelectItem>
+                        <SelectItem value="no_heating">No heating available</SelectItem>
+                        <SelectItem value="vegetarian_only">Vegetarian only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="prep_time">Maximum Prep Time</Label>
+                    <Select onValueChange={(value) => handleInputChange('prep_time_limit', value)}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select prep time limit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5_minutes">5 minutes or less</SelectItem>
+                        <SelectItem value="15_minutes">15 minutes</SelectItem>
+                        <SelectItem value="30_minutes">30 minutes</SelectItem>
+                        <SelectItem value="no_limit">No time limit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="budget">Budget Range</Label>
+                    <Select onValueChange={(value) => handleInputChange('budget_range', value)}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select budget range" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="budget">Budget-friendly</SelectItem>
+                        <SelectItem value="moderate">Moderate</SelectItem>
+                        <SelectItem value="premium">Premium ingredients</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="special_requirements">Special Requirements</Label>
+                    <Textarea
+                      id="special_requirements"
+                      placeholder="Any other special requirements..."
+                      value={planPreferences.special_requirements}
+                      onChange={(e) => handleInputChange('special_requirements', e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Notifications */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-purple-500" />
+                  Notification Settings
+                </CardTitle>
+                <CardDescription>
+                  Set up meal reminders for {kidName}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <NotificationSettings 
+                  preferences={notificationPrefs}
+                  onPreferencesChange={setNotificationPrefs}
+                  kidName={kidName}
+                  onTestNotification={testNotifications}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Full Plan Dialog */}
+      {currentPlan && (
+        <Dialog open={showFullPlan} onOpenChange={setShowFullPlan}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-blue-500" />
+                {currentPlan.title} - Complete Plan
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="text-sm text-gray-600 mb-4">
+                {currentPlan.description} • {currentPlan.daily_plans.length} days
+              </div>
+              
+              {/* All Daily Plans */}
+              <div className="space-y-4">
                 {currentPlan.daily_plans.map((day, dayIndex) => (
                   <Card key={day.day} className="overflow-hidden">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b pb-3">
                       <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-blue-800">
-                            Day {day.day} - {new Date(day.date).toLocaleDateString('en-US', { 
-                              weekday: 'long', 
-                              month: 'short', 
-                              day: 'numeric' 
-                            })}
-                          </CardTitle>
-                          <CardDescription className="text-blue-700">
-                            Total: {day.total_calories} calories • 
-                            Protein: {day.nutrition_summary.protein}g • 
-                            Calcium: {day.nutrition_summary.calcium}mg
-                          </CardDescription>
-                        </div>
+                        <CardTitle className="text-blue-800 text-lg">
+                          Day {day.day} - {new Date(day.date).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}
+                        </CardTitle>
+                        <Badge variant="outline" className="bg-blue-100 text-blue-700">
+                          {day.total_calories} calories
+                        </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="p-6">
+                    <CardContent className="p-4">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Breakfast */}
-                        <MealCard 
-                          meal={day.breakfast}
-                          mealType="breakfast"
-                          onReplace={() => replaceMeal(dayIndex, 'breakfast')}
-                          onView={() => {
-                            setSelectedMeal(day.breakfast);
-                            setShowMealDialog(true);
-                          }}
-                          isGenerating={generating}
-                        />
+                        <div className="relative p-3 bg-yellow-50 rounded-lg border border-yellow-200 hover:bg-yellow-100 transition-colors group">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">🌅</span>
+                              <h4 className="font-semibold text-yellow-800">Breakfast</h4>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedMeal(day.breakfast);
+                                  setShowMealDialog(true);
+                                }}
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => replaceMeal(dayIndex, 'breakfast')}
+                                disabled={generating}
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                {generating ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{day.breakfast.emoji}</span>
+                              <span className="font-medium text-sm">{day.breakfast.name}</span>
+                            </div>
+                            <p className="text-xs text-gray-600 line-clamp-2">{day.breakfast.description}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <Clock className="h-3 w-3" />
+                              <span>{day.breakfast.prep_time}</span>
+                              <span>•</span>
+                              <span>{day.breakfast.calories} cal</span>
+                            </div>
+                          </div>
+                        </div>
 
                         {/* Lunch */}
-                        <MealCard 
-                          meal={day.lunch}
-                          mealType="lunch"
-                          onReplace={() => replaceMeal(dayIndex, 'lunch')}
-                          onView={() => {
-                            setSelectedMeal(day.lunch);
-                            setShowMealDialog(true);
-                          }}
-                          isGenerating={generating}
-                        />
+                        <div className="relative p-3 bg-green-50 rounded-lg border border-green-200 hover:bg-green-100 transition-colors group">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">🥪</span>
+                              <h4 className="font-semibold text-green-800">Lunch</h4>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedMeal(day.lunch);
+                                  setShowMealDialog(true);
+                                }}
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => replaceMeal(dayIndex, 'lunch')}
+                                disabled={generating}
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                {generating ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{day.lunch.emoji}</span>
+                              <span className="font-medium text-sm">{day.lunch.name}</span>
+                            </div>
+                            <p className="text-xs text-gray-600 line-clamp-2">{day.lunch.description}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <Clock className="h-3 w-3" />
+                              <span>{day.lunch.prep_time}</span>
+                              <span>•</span>
+                              <span>{day.lunch.calories} cal</span>
+                            </div>
+                          </div>
+                        </div>
 
                         {/* Snack */}
-                        <MealCard 
-                          meal={day.snack}
-                          mealType="snack"
-                          onReplace={() => replaceMeal(dayIndex, 'snack')}
-                          onView={() => {
-                            setSelectedMeal(day.snack);
-                            setShowMealDialog(true);
-                          }}
-                          isGenerating={generating}
-                        />
+                        <div className="relative p-3 bg-purple-50 rounded-lg border border-purple-200 hover:bg-purple-100 transition-colors group">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">🍎</span>
+                              <h4 className="font-semibold text-purple-800">Snack</h4>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedMeal(day.snack);
+                                  setShowMealDialog(true);
+                                }}
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => replaceMeal(dayIndex, 'snack')}
+                                disabled={generating}
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                {generating ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{day.snack.emoji}</span>
+                              <span className="font-medium text-sm">{day.snack.name}</span>
+                            </div>
+                            <p className="text-xs text-gray-600 line-clamp-2">{day.snack.description}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <Clock className="h-3 w-3" />
+                              <span>{day.snack.prep_time}</span>
+                              <span>•</span>
+                              <span>{day.snack.calories} cal</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             </div>
-          ) : (
-            <Card>
-              <CardContent className="text-center py-12">
-                <ChefHat className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Meal Plan Yet</h3>
-                <p className="text-gray-600 mb-6">
-                  Create a personalized school meal plan for {kidName} to get started.
-                </p>
-                <Button 
-                  onClick={() => setActiveTab('create')}
-                  className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Meal Plan
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-6">
-          <NotificationSettings 
-            preferences={notificationPrefs}
-            onPreferencesChange={setNotificationPrefs}
-            kidName={kidName}
-            onTestNotification={testNotifications}
-          />
-        </TabsContent>
-      </Tabs>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Meal Detail Dialog */}
       {selectedMeal && (

@@ -24,11 +24,14 @@ import {
   Heart,
   Users,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Baby,
+  Target,
+  Layout
 } from 'lucide-react';
 
 const UserProfileForm: React.FC = () => {
-  const { profile, updateProfile, loading } = useUser();
+  const { profile, updateProfile, updatePreferences, getPreference, loading } = useUser();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -41,7 +44,8 @@ const UserProfileForm: React.FC = () => {
     activity_level: 'moderate',
     health_goals: 'General health',
     dietary_restrictions: 'None',
-    weight_unit: 'kg',
+    dashboard_preference: 'kids' as 'kids' | 'adult',
+    weight_unit: 'kg' as 'kg' | 'lbs',
     notification_preferences: {
       email: true,
       sms: false,
@@ -65,18 +69,19 @@ const UserProfileForm: React.FC = () => {
         activity_level: profile.activity_level || 'moderate',
         health_goals: profile.health_goals || 'General health',
         dietary_restrictions: profile.dietary_restrictions || 'None',
-        weight_unit: profile.weight_unit || 'kg',
-        notification_preferences: profile.notification_preferences || {
-          email: true,
-          sms: false,
-          push: true,
-          meal_reminders: true,
-          health_tips: true,
-          family_updates: true
+        dashboard_preference: getPreference('dashboard', 'default_view', 'kids'),
+        weight_unit: getPreference('health', 'units.weight', 'kg'),
+        notification_preferences: {
+          email: getPreference('notifications', 'email', true),
+          sms: getPreference('notifications', 'sms', false),
+          push: getPreference('notifications', 'push', true),
+          meal_reminders: getPreference('notifications', 'meal_reminders', true),
+          health_tips: getPreference('notifications', 'health_tips', true),
+          family_updates: getPreference('notifications', 'family_updates', true)
         }
       });
     }
-  }, [profile]);
+  }, [profile, getPreference]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => {
@@ -139,7 +144,8 @@ const UserProfileForm: React.FC = () => {
         return;
       }
 
-      const updates = {
+      // Update basic profile information
+      const profileUpdates = {
         full_name: formData.full_name,
         email: formData.email,
         phone_number: formData.phone_number || null,
@@ -148,12 +154,31 @@ const UserProfileForm: React.FC = () => {
         height: formData.height ? parseFloat(formData.height) : null,
         activity_level: formData.activity_level,
         health_goals: formData.health_goals,
-        dietary_restrictions: formData.dietary_restrictions,
-        weight_unit: formData.weight_unit,
-        notification_preferences: formData.notification_preferences
+        dietary_restrictions: formData.dietary_restrictions
       };
 
-      await updateProfile(updates);
+      // Update preferences using the new structured system
+      await Promise.all([
+        // Update basic profile
+        updateProfile(profileUpdates),
+        
+        // Update dashboard preferences
+        updatePreferences('dashboard', {
+          default_view: formData.dashboard_preference
+        }),
+        
+        // Update health preferences
+        updatePreferences('health', {
+          units: {
+            weight: formData.weight_unit
+          }
+        }),
+        
+        // Update notification preferences
+        updatePreferences('notifications', formData.notification_preferences)
+      ]);
+
+      // All updates are handled above in Promise.all
       
       toast({
         title: "Profile Updated",
@@ -322,6 +347,65 @@ const UserProfileForm: React.FC = () => {
                       <SelectItem value="very_active">Very Active</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Dashboard Preferences */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Layout className="h-5 w-5 text-blue-500" />
+                Dashboard Preferences
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="dashboard_preference">Default Dashboard View</Label>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Choose which dashboard view you'd like to see by default when you open the app
+                  </p>
+                  <Select value={formData.dashboard_preference} onValueChange={(value: 'kids' | 'adult') => handleInputChange('dashboard_preference', value)}>
+                    <SelectTrigger className="w-full md:w-64">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="kids">
+                        <div className="flex items-center gap-2">
+                          <Baby className="h-4 w-4 text-orange-500" />
+                          <span>Kids Meal Planning</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="adult">
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4 w-4 text-blue-500" />
+                          <span>Adult Diet Planning</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <div className="mt-0.5">
+                        {formData.dashboard_preference === 'kids' ? (
+                          <Baby className="h-4 w-4 text-orange-500" />
+                        ) : (
+                          <Target className="h-4 w-4 text-blue-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">
+                          {formData.dashboard_preference === 'kids' ? 'Kids Meal Planning' : 'Adult Diet Planning'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formData.dashboard_preference === 'kids' 
+                            ? 'Focus on family nutrition, school meals, and kid-friendly recipes'
+                            : 'Focus on personal nutrition, fitness goals, and meal tracking'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

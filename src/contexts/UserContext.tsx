@@ -2,28 +2,63 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-interface UserProfile {
-  id?: string;
-  user_id: string;
-  full_name: string | null;
-  email: string | null;
-  phone_number: string | null;
-  notification_preferences: {
+interface UserPreferences {
+  dashboard: {
+    default_view: 'kids' | 'adult';
+    theme: 'light' | 'dark' | 'auto';
+    language: string;
+  };
+  notifications: {
     email: boolean;
     sms: boolean;
     push: boolean;
     meal_reminders: boolean;
     health_tips: boolean;
     family_updates: boolean;
-  } | null;
+    reminder_times: {
+      breakfast: string;
+      lunch: string;
+      dinner: string;
+    };
+  };
+  health: {
+    units: {
+      weight: 'kg' | 'lbs';
+      height: 'cm' | 'ft';
+      temperature: 'celsius' | 'fahrenheit';
+    };
+    goals: {
+      daily_calories: number | null;
+      daily_water: number | null;
+      weekly_exercise: number | null;
+    };
+    tracking: {
+      auto_log_meals: boolean;
+      sync_fitness_apps: boolean;
+      share_with_family: boolean;
+    };
+  };
+  privacy: {
+    profile_visibility: 'public' | 'family' | 'private';
+    data_sharing: boolean;
+    analytics: boolean;
+  };
+}
+
+interface UserProfile {
+  id?: string;
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone_number: string | null;
   age: number | null;
   weight: number | null;
   height: number | null;
   activity_level: string | null;
   health_goals: string | null;
   dietary_restrictions: string | null;
-  weight_unit: string | null;
   family_id?: string | null;
+  preferences: UserPreferences | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -34,6 +69,8 @@ interface UserContextType {
   loading: boolean;
   refreshProfile: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  updatePreferences: (section: keyof UserPreferences, updates: any) => Promise<void>;
+  getPreference: <T>(section: keyof UserPreferences, key: string, defaultValue: T) => T;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -58,6 +95,94 @@ function UserProvider({ children }: UserProviderProps) {
   
   // Use refs to prevent multiple simultaneous calls
   const loadingRef = useRef(false);
+
+  // Helper function to create default preferences
+  const createDefaultPreferences = (): UserPreferences => {
+    return {
+      dashboard: {
+        default_view: 'kids',
+        theme: 'light',
+        language: 'en'
+      },
+      notifications: {
+        email: true,
+        sms: false,
+        push: true,
+        meal_reminders: true,
+        health_tips: true,
+        family_updates: true,
+        reminder_times: {
+          breakfast: '08:00',
+          lunch: '12:00',
+          dinner: '18:00'
+        }
+      },
+      health: {
+        units: {
+          weight: 'kg',
+          height: 'cm',
+          temperature: 'celsius'
+        },
+        goals: {
+          daily_calories: null,
+          daily_water: null,
+          weekly_exercise: null
+        },
+        tracking: {
+          auto_log_meals: false,
+          sync_fitness_apps: false,
+          share_with_family: true
+        }
+      },
+      privacy: {
+        profile_visibility: 'family',
+        data_sharing: false,
+        analytics: true
+      }
+    };
+  };
+
+  // Helper function to merge preferences with defaults
+  const mergeWithDefaults = (preferences: any): UserPreferences => {
+    const defaults = createDefaultPreferences();
+    
+    if (!preferences || typeof preferences !== 'object') {
+      return defaults;
+    }
+
+    return {
+      dashboard: {
+        ...defaults.dashboard,
+        ...preferences.dashboard
+      },
+      notifications: {
+        ...defaults.notifications,
+        ...preferences.notifications,
+        reminder_times: {
+          ...defaults.notifications.reminder_times,
+          ...preferences.notifications?.reminder_times
+        }
+      },
+      health: {
+        units: {
+          ...defaults.health.units,
+          ...preferences.health?.units
+        },
+        goals: {
+          ...defaults.health.goals,
+          ...preferences.health?.goals
+        },
+        tracking: {
+          ...defaults.health.tracking,
+          ...preferences.health?.tracking
+        }
+      },
+      privacy: {
+        ...defaults.privacy,
+        ...preferences.privacy
+      }
+    };
+  };
 
   const createProfileFromUser = (currentUser: any): UserProfile => {
     // PRIORITY 1: Extract full_name from user metadata (set during sign-up)
@@ -92,22 +217,14 @@ function UserProvider({ children }: UserProviderProps) {
       full_name: fullName,
       email: currentUser.email,
       phone_number: null,
-      notification_preferences: {
-        email: true,
-        sms: false,
-        push: true,
-        meal_reminders: true,
-        health_tips: true,
-        family_updates: true
-      },
       age: null,
       weight: null,
       height: null,
       activity_level: 'moderate',
       health_goals: 'General health',
       dietary_restrictions: 'None',
-      weight_unit: 'kg',
-      family_id: null
+      family_id: null,
+      preferences: createDefaultPreferences()
     };
   };
 
@@ -148,32 +265,30 @@ function UserProvider({ children }: UserProviderProps) {
         console.log('🔍 Profile full_name:', profileData.full_name);
         
         // CRITICAL: Always preserve the existing full_name, never overwrite it
+        let preferences = null;
+        
+        // Try to get preferences from database, fallback to localStorage if column doesn't exist
+        if (profileData.preferences) {
+          preferences = mergeWithDefaults(profileData.preferences);
+        } else {
+          // Check localStorage for preferences
+          try {
+            const storedPrefs = localStorage.getItem('user_preferences');
+            if (storedPrefs) {
+              preferences = mergeWithDefaults(JSON.parse(storedPrefs));
+            } else {
+              preferences = createDefaultPreferences();
+            }
+          } catch {
+            preferences = createDefaultPreferences();
+          }
+        }
+
         const completeProfile: UserProfile = {
           ...profileData,
           full_name: profileData.full_name || 'User', // Preserve existing name from database
           phone_number: profileData.phone_number || null,
-          notification_preferences: (() => {
-            // Handle the notification_preferences from database
-            if (profileData.notification_preferences && typeof profileData.notification_preferences === 'object') {
-              const prefs = profileData.notification_preferences as any;
-              return {
-                email: prefs.email ?? true,
-                sms: prefs.sms ?? false,
-                push: prefs.push ?? true,
-                meal_reminders: prefs.meal_reminders ?? true,
-                health_tips: prefs.health_tips ?? true,
-                family_updates: prefs.family_updates ?? true
-              };
-            }
-            return {
-              email: true,
-              sms: false,
-              push: true,
-              meal_reminders: true,
-              health_tips: true,
-              family_updates: true
-            };
-          })()
+          preferences: preferences
         };
         
         // FINAL SAFETY CHECK: Only fix if full_name is actually "User" (not other valid names)
@@ -239,6 +354,110 @@ function UserProvider({ children }: UserProviderProps) {
         loadUserProfile(user);
       }, 100);
     }
+  };
+
+  // New method to update specific preference sections
+  const updatePreferences = async (section: keyof UserPreferences, updates: any) => {
+    if (!user?.id || !profile) {
+      throw new Error('No user or profile found');
+    }
+
+    try {
+      const currentPreferences = profile.preferences || createDefaultPreferences();
+      const updatedPreferences = {
+        ...currentPreferences,
+        [section]: {
+          ...currentPreferences[section],
+          ...updates
+        }
+      };
+
+      // Try to update database, but handle gracefully if preferences column doesn't exist
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .update({ preferences: updatedPreferences })
+          .eq('user_id', user.id)
+          .select()
+          .single();
+
+        if (error) {
+          // Check if it's a column not found error
+          if (error.message?.includes("preferences") && error.message?.includes("schema cache")) {
+            console.warn('Preferences column not found in database, using localStorage fallback');
+            throw new Error('PREFERENCES_COLUMN_NOT_FOUND');
+          }
+          throw error;
+        }
+
+        // Update local state with database response
+        const updatedProfile = {
+          ...profile,
+          preferences: mergeWithDefaults(data.preferences)
+        };
+        setProfile(updatedProfile);
+
+      } catch (dbError: any) {
+        if (dbError.message === 'PREFERENCES_COLUMN_NOT_FOUND') {
+          // Fallback: Update local state and localStorage
+          console.log('Using localStorage fallback for preferences');
+          const updatedProfile = {
+            ...profile,
+            preferences: updatedPreferences
+          };
+          setProfile(updatedProfile);
+          
+          // Store in localStorage as backup
+          localStorage.setItem('user_preferences', JSON.stringify(updatedPreferences));
+        } else {
+          throw dbError;
+        }
+      }
+
+      // Also update localStorage for immediate effect
+      if (section === 'dashboard' && updates.default_view) {
+        localStorage.setItem('dashboard_preference', updates.default_view);
+      }
+
+      toast({
+        title: "Preferences Updated",
+        description: "Your preferences have been saved successfully",
+      });
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to update preferences",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  // Helper method to get specific preference values with defaults
+  const getPreference = <T>(section: keyof UserPreferences, key: string, defaultValue: T): T => {
+    if (!profile?.preferences) {
+      return defaultValue;
+    }
+
+    const sectionData = profile.preferences[section] as any;
+    if (!sectionData || typeof sectionData !== 'object') {
+      return defaultValue;
+    }
+
+    // Handle nested keys like 'units.weight'
+    const keys = key.split('.');
+    let value = sectionData;
+    
+    for (const k of keys) {
+      if (value && typeof value === 'object' && k in value) {
+        value = value[k];
+      } else {
+        return defaultValue;
+      }
+    }
+
+    return value !== undefined ? value : defaultValue;
   };
 
   // Ensure we always have a valid profile
@@ -345,32 +564,33 @@ function UserProvider({ children }: UserProviderProps) {
       }
 
       // Ensure the updated profile includes all required fields
+      let preferences = null;
+      
+      // Handle preferences gracefully
+      if (data.preferences) {
+        preferences = mergeWithDefaults(data.preferences);
+      } else if (profile?.preferences) {
+        // Keep existing preferences if database doesn't have them
+        preferences = profile.preferences;
+      } else {
+        // Try localStorage fallback
+        try {
+          const storedPrefs = localStorage.getItem('user_preferences');
+          if (storedPrefs) {
+            preferences = mergeWithDefaults(JSON.parse(storedPrefs));
+          } else {
+            preferences = createDefaultPreferences();
+          }
+        } catch {
+          preferences = createDefaultPreferences();
+        }
+      }
+
       const completeProfile: UserProfile = {
         ...data,
         full_name: data.full_name || 'User', // Preserve existing name
         phone_number: data.phone_number || null,
-        notification_preferences: (() => {
-          // Handle the notification_preferences from database
-          if (data.notification_preferences && typeof data.notification_preferences === 'object') {
-            const prefs = data.notification_preferences as any;
-            return {
-              email: prefs.email ?? true,
-              sms: prefs.sms ?? false,
-              push: prefs.push ?? true,
-              meal_reminders: prefs.meal_reminders ?? true,
-              health_tips: prefs.health_tips ?? true,
-              family_updates: prefs.family_updates ?? true
-            };
-          }
-          return {
-            email: true,
-            sms: false,
-            push: true,
-            meal_reminders: true,
-            health_tips: true,
-            family_updates: true
-          };
-        })()
+        preferences: preferences
       };
 
       // Final safety check: never allow "User" as full_name if we have email
@@ -472,7 +692,9 @@ function UserProvider({ children }: UserProviderProps) {
     profile,
     loading,
     refreshProfile,
-    updateProfile
+    updateProfile,
+    updatePreferences,
+    getPreference
   };
 
   return (

@@ -981,7 +981,7 @@ const Kids: React.FC = () => {
                   </Button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {kidsProfiles.map((kid) => (
                     <Card 
                       key={kid.id}
@@ -1032,8 +1032,8 @@ const Kids: React.FC = () => {
               {/* Professional Tab Navigation */}
               <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
                 <CardContent className="p-6">
-                  {/* Mobile: Horizontal Scrollable Tabs */}
-                  <div className="block lg:hidden">
+                  {/* Mobile/Tablet: Horizontal Scrollable Tabs */}
+                  <div className="block xl:hidden">
                     <div className="overflow-x-auto scrollbar-hide">
                       <TabsList className="inline-flex h-16 items-center space-x-2 p-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl min-w-max shadow-inner">
                         <TabsTrigger 
@@ -1083,7 +1083,7 @@ const Kids: React.FC = () => {
                   </div>
 
                   {/* Desktop: Professional Grid Layout */}
-                  <div className="hidden lg:block">
+                  <div className="hidden xl:block">
                     <TabsList className="grid w-full grid-cols-6 gap-2 p-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl shadow-inner">
                       <TabsTrigger 
                         value="overview" 
@@ -1134,7 +1134,7 @@ const Kids: React.FC = () => {
 
               {/* Overview Tab */}
               <TabsContent value="overview" className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                   {/* Child Profile Card */}
                   <Card className="lg:col-span-1 bg-gradient-to-br from-orange-50 to-yellow-50 border-orange-200">
                     <CardHeader className="pb-4">
@@ -1285,7 +1285,7 @@ const Kids: React.FC = () => {
               </TabsContent>
 
               {/* Nutrition Tab */}
-              <TabsContent value="nutrition" className="space-y-6">
+              <TabsContent value="nutrition" className="space-y-4">
                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
                   <CardHeader>
                     <div className="flex items-center gap-3">
@@ -1300,9 +1300,9 @@ const Kids: React.FC = () => {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pb-4">
                     {/* Growth Tracking Dashboard */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
                       {/* Growth Metrics */}
                       <Card className="lg:col-span-2">
                         <CardHeader>
@@ -1314,26 +1314,26 @@ const Kids: React.FC = () => {
                             Monitor {selectedKid.name}'s height, weight, and nutritional milestones
                           </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                          <div className="space-y-6">
+                        <CardContent className="pb-4">
+                          <div className="space-y-4">
                             {/* Current Stats */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              <div className="text-center p-3 bg-blue-50 rounded-lg">
                                 <div className="text-2xl font-bold text-blue-600">{selectedKid.height_cm || '42'}"</div>
                                 <div className="text-sm text-blue-600">Height</div>
                                 <div className="text-xs text-blue-500">+2" this month</div>
                               </div>
-                              <div className="text-center p-4 bg-green-50 rounded-lg">
+                              <div className="text-center p-3 bg-green-50 rounded-lg">
                                 <div className="text-2xl font-bold text-green-600">{selectedKid.weight_kg || '35'} lbs</div>
                                 <div className="text-sm text-green-600">Weight</div>
                                 <div className="text-xs text-green-500">+1.5 lbs this month</div>
                               </div>
-                              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                              <div className="text-center p-3 bg-purple-50 rounded-lg">
                                 <div className="text-2xl font-bold text-purple-600">85%</div>
                                 <div className="text-sm text-purple-600">Growth Percentile</div>
                                 <div className="text-xs text-purple-500">Above average</div>
                               </div>
-                              <div className="text-center p-4 bg-orange-50 rounded-lg">
+                              <div className="text-center p-3 bg-orange-50 rounded-lg">
                                 <div className="text-2xl font-bold text-orange-600">18.5</div>
                                 <div className="text-sm text-orange-600">BMI</div>
                                 <div className="text-xs text-orange-500">Healthy range</div>
@@ -1341,9 +1341,9 @@ const Kids: React.FC = () => {
                             </div>
 
                             {/* Growth Chart */}
-                            <div className="space-y-4">
-                              <h4 className="font-semibold text-gray-900">Growth Trend (Last 6 Months)</h4>
-                              <div className="h-48 bg-gray-50 rounded-lg p-4">
+                            <div className="space-y-3">
+                              <h4 className="font-medium text-gray-900 text-sm">Growth Trend (Last 6 Months)</h4>
+                              <div className="h-32 bg-gray-50 rounded-lg p-3">
                                 <div className="flex items-end justify-between h-full space-x-2">
                                   {[
                                     { month: 'Jan', height: 40, weight: 32 },
@@ -1356,12 +1356,12 @@ const Kids: React.FC = () => {
                                     <div key={data.month} className="flex flex-col items-center space-y-2">
                                       <div className="flex flex-col items-center space-y-1">
                                         <div 
-                                          className="w-6 bg-blue-400 rounded-t"
-                                          style={{ height: `${(data.height / 45) * 120}px` }}
+                                          className="w-4 bg-blue-400 rounded-t"
+                                          style={{ height: `${(data.height / 45) * 80}px` }}
                                         ></div>
                                         <div 
-                                          className="w-6 bg-green-400 rounded-t"
-                                          style={{ height: `${(data.weight / 40) * 120}px` }}
+                                          className="w-4 bg-green-400 rounded-t"
+                                          style={{ height: `${(data.weight / 40) * 80}px` }}
                                         ></div>
                                       </div>
                                       <span className="text-xs text-gray-600">{data.month}</span>
@@ -1395,23 +1395,23 @@ const Kids: React.FC = () => {
                             Track developmental milestones
                           </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+                        <CardContent className="pb-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-3 p-2 bg-green-50 rounded-lg">
                               <CheckCircle className="h-5 w-5 text-green-500" />
                               <div>
                                 <div className="font-semibold text-green-700">Height Milestone</div>
                                 <div className="text-sm text-green-600">Reached 42 inches</div>
                               </div>
                             </div>
-                            <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
+                            <div className="flex items-center space-x-3 p-2 bg-blue-50 rounded-lg">
                               <CheckCircle className="h-5 w-5 text-blue-500" />
                               <div>
                                 <div className="font-semibold text-blue-700">Weight Milestone</div>
                                 <div className="text-sm text-blue-600">Reached 35 pounds</div>
                               </div>
                             </div>
-                            <div className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
+                            <div className="flex items-center space-x-3 p-2 bg-yellow-50 rounded-lg">
                               <Clock className="h-5 w-5 text-yellow-500" />
                               <div>
                                 <div className="font-semibold text-yellow-700">Next Milestone</div>
@@ -1424,7 +1424,7 @@ const Kids: React.FC = () => {
                     </div>
 
                     {/* Nutrition Tracking */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {/* Daily Nutrition Goals */}
                       <Card>
                         <CardHeader>
@@ -1436,30 +1436,30 @@ const Kids: React.FC = () => {
                             Track daily nutritional intake
                           </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            <div className="space-y-3">
+                        <CardContent className="pb-4">
+                          <div className="space-y-3">
+                            <div className="space-y-2">
                               <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium">Calories</span>
                                 <span className="text-sm text-gray-600">1,200 / 1,400</span>
                               </div>
                               <Progress value={85} className="h-2" />
                             </div>
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                               <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium">Protein</span>
                                 <span className="text-sm text-gray-600">45g / 50g</span>
                               </div>
                               <Progress value={90} className="h-2" />
                             </div>
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                               <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium">Calcium</span>
                                 <span className="text-sm text-gray-600">800mg / 1,000mg</span>
                               </div>
                               <Progress value={80} className="h-2" />
                             </div>
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                               <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium">Iron</span>
                                 <span className="text-sm text-gray-600">7mg / 10mg</span>
@@ -1481,17 +1481,17 @@ const Kids: React.FC = () => {
                             Personalized recommendations for optimal growth
                           </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            <div className="p-3 bg-amber-50 rounded-lg border-l-4 border-amber-400">
+                        <CardContent className="pb-4">
+                          <div className="space-y-3">
+                            <div className="p-2 bg-amber-50 rounded-lg border-l-3 border-amber-400">
                               <h4 className="font-semibold text-amber-700">Increase Iron Intake</h4>
                               <p className="text-sm text-amber-600">Add more leafy greens and lean meats to support growth</p>
                             </div>
-                            <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                            <div className="p-2 bg-blue-50 rounded-lg border-l-3 border-blue-400">
                               <h4 className="font-semibold text-blue-700">More Calcium-Rich Foods</h4>
                               <p className="text-sm text-blue-600">Include dairy products, fortified cereals, and green vegetables</p>
                             </div>
-                            <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
+                            <div className="p-2 bg-green-50 rounded-lg border-l-3 border-green-400">
                               <h4 className="font-semibold text-green-700">Physical Activity</h4>
                               <p className="text-sm text-green-600">Encourage 60 minutes of active play daily</p>
                             </div>

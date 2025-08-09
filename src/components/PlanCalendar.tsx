@@ -106,30 +106,30 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
     loadAIGeneratedPlans();
   }, [user?.id, selectedChild?.id]);
 
+  // Listen for meal plan activation events
+  useEffect(() => {
+    const handleMealPlanActivated = (event: CustomEvent) => {
+      const { kidId } = event.detail;
+      if (kidId === selectedChild?.id) {
+        loadAIGeneratedPlans();
+      }
+    };
+
+    window.addEventListener('mealPlanActivated', handleMealPlanActivated as EventListener);
+    
+    return () => {
+      window.removeEventListener('mealPlanActivated', handleMealPlanActivated as EventListener);
+    };
+  }, [selectedChild?.id]);
+
   const loadSavedRecipes = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !selectedChild?.id) return;
     
     setLoading(true);
     try {
-      // Load from localStorage for now
-      const savedRecipesData = localStorage.getItem('savedRecipes');
-      let recipes: SavedRecipe[] = [];
-      
-      if (savedRecipesData) {
-        recipes = JSON.parse(savedRecipesData);
-        // Filter recipes for the current user and selected child
-        recipes = recipes.filter(recipe => 
-          recipe.user_id === user.id && 
-          (!selectedChild || recipe.kid_id === selectedChild.id)
-        );
-      }
-      
-      // Add premium recipes and enhanced data for professional demo
-      if (recipes.length === 0) {
-        recipes = generateProfessionalDemoData();
-      }
-      
-      setSavedRecipes(recipes);
+      // For kids calendar, we only show active meal plans, not saved recipes
+      // Initialize with empty array - active meal plans will be loaded separately
+      setSavedRecipes([]);
     } catch (error) {
       console.error('Error loading saved recipes:', error);
       toast({
@@ -143,30 +143,23 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
   };
 
   const loadAIGeneratedPlans = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !selectedChild?.id) return;
     
     try {
-      // Load active AI-generated plans from database
-      const { data: plans, error } = await supabase
-        .from('nutrition_plans')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error loading AI plans:', error);
-        return;
-      }
-
-      // Convert AI plans to calendar format
-      if (plans && plans.length > 0) {
-        const activePlan = plans[0];
-        const aiRecipes = convertAIPlanToCalendarFormat(activePlan);
-        setSavedRecipes(prev => [...prev, ...aiRecipes]);
-      }
+      console.log('Loading active meal plan for child:', selectedChild.name, selectedChild.id);
+      
+      // Load ONLY the active meal plan for this specific child
+      const { KidsMealPlansService } = await import('@/services/kids-meal-plans-service');
+      const mealPlanEvents = await KidsMealPlansService.getActiveMealPlanForCalendar(selectedChild.id);
+      
+      console.log('Loaded meal plan events:', mealPlanEvents.length, 'events for', selectedChild.name);
+      
+      // Replace all recipes with only the active meal plan for this child
+      setSavedRecipes(mealPlanEvents);
     } catch (error) {
-      console.error('Error loading AI plans:', error);
+      console.error('Error loading AI-generated plans:', error);
+      // If no active plan, show empty calendar
+      setSavedRecipes([]);
     }
   };
 
@@ -478,7 +471,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                       } group-hover:scale-105 transition-transform duration-200`}>
                         <div className="flex items-center gap-1">
                           <span>{getMealTypeIcon(recipe.meal_type)}</span>
-                          <span className="truncate font-medium">{recipe.recipe_data.name}</span>
+                          <span className="truncate font-medium">{recipe.recipe_data?.name || recipe.recipe_name || 'Unnamed Recipe'}</span>
                           {recipe.is_premium && (
                             <Crown className="h-3 w-3 text-yellow-500" />
                           )}
@@ -508,7 +501,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">{recipe.recipe_data.name}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{recipe.recipe_data?.name || recipe.recipe_name || 'Unnamed Recipe'}</h3>
                   {recipe.is_premium && (
                     <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0">
                       <Crown className="h-3 w-3 mr-1" />
@@ -527,11 +520,11 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                   </div>
                   <div className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    {recipe.recipe_data.prep_time}
+                    {recipe.recipe_data?.prep_time || recipe.prep_time || 'N/A'}
                   </div>
                   <div className="flex items-center gap-1">
                     <Zap className="h-4 w-4" />
-                    {recipe.recipe_data.calories} cal
+                    {recipe.recipe_data?.calories || recipe.calories || 0} cal
                   </div>
                   {recipe.rating && (
                     <div className="flex items-center gap-1">
@@ -542,7 +535,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                 </div>
                 
                 <p className="text-gray-700 text-sm mb-3">
-                  {recipe.recipe_data.ingredients.slice(0, 3).join(', ')}...
+                  {(recipe.recipe_data?.ingredients || recipe.ingredients || []).slice(0, 3).join(', ')}...
                 </p>
               </div>
               
@@ -585,7 +578,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
               Meal Calendar
             </h1>
             <p className="text-blue-100 mt-1">
-              {selectedChild ? `Personalized meal plans for ${selectedChild.name}` : 'Your professional meal calendar'}
+              {selectedChild ? `Active meal plan for ${selectedChild.name}` : 'Your professional meal calendar'}
             </p>
             {isPremiumUser && (
               <div className="flex items-center gap-2 mt-2">
@@ -670,6 +663,19 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your meal calendar...</p>
         </Card>
+      ) : savedRecipes.length === 0 ? (
+        <Card className="p-12 text-center bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+          <div className="p-4 bg-blue-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <Calendar className="h-8 w-8 text-blue-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-blue-800 mb-2">No Active Meal Plan</h3>
+          <p className="text-blue-700 mb-4">
+            {selectedChild ? `${selectedChild.name} doesn't have an active meal plan yet.` : 'No child selected.'}
+          </p>
+          <p className="text-sm text-blue-600">
+            Go to the "Meals" tab to create and activate a meal plan to see it here.
+          </p>
+        </Card>
       ) : viewMode === 'calendar' ? renderCalendarView() : renderListView()}
 
       {/* Recipe Detail Dialog */}
@@ -678,7 +684,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ChefHat className="h-5 w-5 text-orange-500" />
-              {selectedRecipe?.recipe_data.name}
+              {selectedRecipe?.recipe_data?.name || selectedRecipe?.recipe_name || 'Recipe Details'}
               {selectedRecipe?.is_premium && (
                 <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0">
                   <Crown className="h-3 w-3 mr-1" />
@@ -693,15 +699,15 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
               {/* Recipe Stats */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{selectedRecipe.recipe_data.calories}</div>
+                  <div className="text-2xl font-bold text-blue-600">{selectedRecipe.recipe_data?.calories || selectedRecipe.calories || 0}</div>
                   <div className="text-xs text-gray-600">Calories</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{selectedRecipe.recipe_data.prep_time}</div>
+                  <div className="text-2xl font-bold text-green-600">{selectedRecipe.recipe_data?.prep_time || selectedRecipe.prep_time || 'N/A'}</div>
                   <div className="text-xs text-gray-600">Prep Time</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">{selectedRecipe.recipe_data.difficulty}</div>
+                  <div className="text-2xl font-bold text-purple-600">{selectedRecipe.recipe_data?.difficulty || selectedRecipe.difficulty || 'N/A'}</div>
                   <div className="text-xs text-gray-600">Difficulty</div>
                 </div>
                 <div className="text-center">
@@ -722,7 +728,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {(() => {
-                    const ingredients = selectedRecipe.recipe_data.ingredients;
+                    const ingredients = selectedRecipe.recipe_data?.ingredients || selectedRecipe.ingredients || [];
                     // Handle both string and array formats
                     const ingredientArray = Array.isArray(ingredients) 
                       ? ingredients 
@@ -748,7 +754,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                 </h4>
                 <div className="space-y-3">
                   {(() => {
-                    const instructions = selectedRecipe.recipe_data.instructions;
+                    const instructions = selectedRecipe.recipe_data?.instructions || selectedRecipe.instructions || [];
                     // Handle both string and array formats
                     const instructionArray = Array.isArray(instructions) 
                       ? instructions 
@@ -776,23 +782,23 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="text-2xl font-bold text-blue-600">{selectedRecipe.recipe_data.nutrition_info.protein}g</div>
+                    <div className="text-2xl font-bold text-blue-600">{selectedRecipe.recipe_data?.nutrition_info?.protein || selectedRecipe.nutrition?.protein || 0}g</div>
                     <div className="text-sm text-gray-600">Protein</div>
                   </div>
                   <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
-                    <div className="text-2xl font-bold text-green-600">{selectedRecipe.recipe_data.nutrition_info.carbs}g</div>
+                    <div className="text-2xl font-bold text-green-600">{selectedRecipe.recipe_data?.nutrition_info?.carbs || selectedRecipe.nutrition?.carbs || 0}g</div>
                     <div className="text-sm text-gray-600">Carbs</div>
                   </div>
                   <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <div className="text-2xl font-bold text-yellow-600">{selectedRecipe.recipe_data.nutrition_info.fat}g</div>
+                    <div className="text-2xl font-bold text-yellow-600">{selectedRecipe.recipe_data?.nutrition_info?.fat || selectedRecipe.nutrition?.fat || 0}g</div>
                     <div className="text-sm text-gray-600">Fat</div>
                   </div>
                   <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <div className="text-2xl font-bold text-purple-600">{selectedRecipe.recipe_data.nutrition_info.fiber}g</div>
+                    <div className="text-2xl font-bold text-purple-600">{selectedRecipe.recipe_data?.nutrition_info?.fiber || selectedRecipe.nutrition?.fiber || 0}g</div>
                     <div className="text-sm text-gray-600">Fiber</div>
                   </div>
                   <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
-                    <div className="text-2xl font-bold text-red-600">{selectedRecipe.recipe_data.nutrition_info.sugar}g</div>
+                    <div className="text-2xl font-bold text-red-600">{selectedRecipe.recipe_data?.nutrition_info?.sugar || selectedRecipe.nutrition?.sugar || 0}g</div>
                     <div className="text-sm text-gray-600">Sugar</div>
                   </div>
                 </div>
