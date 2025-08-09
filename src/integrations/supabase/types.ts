@@ -42,8 +42,11 @@ export type Database = {
         Row: {
           accepted_at: string | null
           created_at: string | null
+          email: string | null
+          expires_at: string | null
           family_id: string
           id: string
+          invite_token: string | null
           invited_at: string | null
           invited_by: string | null
           role: string
@@ -54,8 +57,11 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           created_at?: string | null
+          email?: string | null
+          expires_at?: string | null
           family_id: string
           id?: string
+          invite_token?: string | null
           invited_at?: string | null
           invited_by?: string | null
           role: string
@@ -66,8 +72,11 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           created_at?: string | null
+          email?: string | null
+          expires_at?: string | null
           family_id?: string
           id?: string
+          invite_token?: string | null
           invited_at?: string | null
           invited_by?: string | null
           role?: string
@@ -170,56 +179,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "kids_nutrition_logs_kid_id_fkey"
-            columns: ["kid_id"]
-            isOneToOne: false
-            referencedRelation: "kids_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      kids_meal_plans: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          duration: number
-          id: string
-          is_active: boolean | null
-          kid_id: string
-          plan_data: Json
-          preferences: Json | null
-          title: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          duration: number
-          id?: string
-          is_active?: boolean | null
-          kid_id: string
-          plan_data: Json
-          preferences?: Json | null
-          title: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          duration?: number
-          id?: string
-          is_active?: boolean | null
-          kid_id?: string
-          plan_data?: Json
-          preferences?: Json | null
-          title?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "kids_meal_plans_kid_id_fkey"
             columns: ["kid_id"]
             isOneToOne: false
             referencedRelation: "kids_profiles"
