@@ -220,18 +220,6 @@ class NotificationService {
             mealData: notification.meal_data,
             type: notification.type
           },
-          actions: [
-            {
-              action: 'view',
-              title: 'View Recipe',
-              icon: '/icons/view.png'
-            },
-            {
-              action: 'dismiss',
-              title: 'Dismiss',
-              icon: '/icons/dismiss.png'
-            }
-          ],
           requireInteraction: false,
           silent: false
         });

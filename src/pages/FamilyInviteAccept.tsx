@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useUser } from '@/contexts/UserContext';
 import { Users, CheckCircle, X, Loader2, Mail, UserPlus } from 'lucide-react';
 
@@ -162,7 +163,7 @@ const FamilyInviteAccept: React.FC = () => {
       // Update invitation status to declined
       await supabase
         .from('family_members')
-        .update({ status: 'declined' })
+        .update({ status: 'declined' } as Database['public']['Tables']['family_members']['Update'])
         .eq('family_id', inviteData.familyId)
         .eq('email', inviteData.email)
         .eq('invite_token', inviteData.token);

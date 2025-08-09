@@ -586,7 +586,7 @@ const FamilyInvite: React.FC = () => {
       // Get user profile for inviter name
       const { data: inviterProfile } = await supabase
         .from('user_profiles')
-        .select('full_name, first_name, last_name')
+        .select('full_name')
         .eq('user_id', user.id)
         .single();
 
@@ -594,12 +594,8 @@ const FamilyInvite: React.FC = () => {
 
       // Build inviter name from available data
       let inviterName = 'Someone';
-      if (inviterProfile?.full_name) {
-        inviterName = inviterProfile.full_name;
-      } else if (inviterProfile?.first_name) {
-        inviterName = inviterProfile.last_name
-          ? `${inviterProfile.first_name} ${inviterProfile.last_name}`
-          : inviterProfile.first_name;
+      if (inviterProfile?.full_name && inviterProfile.full_name.trim()) {
+        inviterName = inviterProfile.full_name.trim();
       } else if (user.email) {
         // Extract name from email (e.g., "john.doe@example.com" -> "John Doe")
         const emailName = user.email.split('@')[0];
@@ -613,12 +609,13 @@ const FamilyInvite: React.FC = () => {
       // Generate family name
       let familyName = family?.name;
       if (!familyName) {
-        if (inviterProfile?.first_name) {
-          familyName = `${inviterProfile.first_name}'s Family`;
+        if (inviterProfile?.full_name && inviterProfile.full_name.trim()) {
+          const firstName = inviterProfile.full_name.trim().split(' ')[0];
+          familyName = `${firstName}'s Family`;
         } else if (user.email) {
           const emailName = user.email.split('@')[0];
-          const firstName = emailName.split(/[._-]/)[0];
-          familyName = `${firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase()}'s Family`;
+          const first = emailName.split(/[._-]/)[0];
+          familyName = `${first.charAt(0).toUpperCase() + first.slice(1).toLowerCase()}'s Family`;
         } else {
           familyName = 'Family';
         }

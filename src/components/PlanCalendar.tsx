@@ -727,7 +727,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                     const ingredientArray = Array.isArray(ingredients) 
                       ? ingredients 
                       : typeof ingredients === 'string' 
-                        ? ingredients.split(',').map(s => s.trim()).filter(s => s) 
+                        ? (ingredients as string).split(',').map(s => s.trim()).filter(s => s) 
                         : ['No ingredients available'];
                     
                     return ingredientArray.map((ingredient, index) => (
@@ -753,7 +753,7 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                     const instructionArray = Array.isArray(instructions) 
                       ? instructions 
                       : typeof instructions === 'string' 
-                        ? instructions.split(/\d+\.\s*/).filter(s => s.trim()) 
+                        ? (instructions as string).split(/\d+\.\s*/).filter(s => s.trim()) 
                         : ['No instructions available'];
                     
                     return instructionArray.map((instruction, index) => (

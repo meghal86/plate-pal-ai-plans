@@ -130,6 +130,56 @@ export type Database = {
           },
         ]
       }
+      kids_meal_plans: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          description: string | null
+          duration: number
+          id: string
+          is_active: boolean
+          kid_id: string
+          plan_data: Json
+          preferences: Json
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          duration: number
+          id?: string
+          is_active?: boolean
+          kid_id: string
+          plan_data: Json
+          preferences?: Json
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          duration?: number
+          id?: string
+          is_active?: boolean
+          kid_id?: string
+          plan_data?: Json
+          preferences?: Json
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kids_meal_plans_kid_id_fkey"
+            columns: ["kid_id"]
+            isOneToOne: false
+            referencedRelation: "kids_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kids_nutrition_logs: {
         Row: {
           calcium_mg: number | null

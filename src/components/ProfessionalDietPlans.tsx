@@ -77,12 +77,15 @@ interface UploadedFile {
 interface GeneratedPlan {
   id: string;
   title: string;
-  description: string;
-  plan_content: any;
-  duration: string;
-  calories: string;
-  is_active: boolean;
-  created_at: string;
+  description?: string | null;
+  plan_content?: any | null;
+  duration?: string | null;
+  calories?: string | null;
+  is_active?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  user_id?: string | null;
+  embedding?: any | null;
   status?: 'active' | 'completed' | 'draft';
   progress?: number;
 }
@@ -235,9 +238,9 @@ const ProfessionalDietPlans: React.FC = () => {
           variant: "destructive"
         });
       } else {
-        const processedPlans = (plans || []).map(plan => ({
+        const processedPlans: GeneratedPlan[] = (plans || []).map(plan => ({
           ...plan,
-          status: plan.is_active ? 'active' : 'draft',
+          status: (plan.is_active ? 'active' : 'draft') as 'active' | 'completed' | 'draft',
           progress: plan.is_active ? Math.floor(Math.random() * 100) : 0
         }));
         setGeneratedPlans(processedPlans);
