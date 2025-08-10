@@ -62,18 +62,19 @@ const FamilyInviteComplete: React.FC = () => {
         return;
       }
 
-      // Add user to family
+      // Accept existing invitation by updating pending record
       const { error: memberError } = await supabase
         .from('family_members')
-        .insert({
-          family_id: inviteData.familyId,
+        .update({
           user_id: user.id,
-          role: inviteData.role || 'member',
           status: 'accepted',
-          invited_by: null,
-          invited_at: new Date().toISOString(),
           accepted_at: new Date().toISOString()
-        });
+        } as any)
+        .eq('family_id', inviteData.familyId)
+        .eq('email', inviteData.email)
+        .eq('invite_token', inviteData.token)
+        .eq('status', 'pending');
+
 
       if (memberError) {
         console.error('Error adding family member:', memberError);

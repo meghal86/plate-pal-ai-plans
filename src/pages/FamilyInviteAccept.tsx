@@ -76,6 +76,7 @@ const FamilyInviteAccept: React.FC = () => {
         role: (role as string) || 'member'
       });
 
+
     } catch (error) {
       console.error('Error loading invite data:', error);
       setError('Failed to load invitation details.');
@@ -93,7 +94,7 @@ const FamilyInviteAccept: React.FC = () => {
       localStorage.setItem('pendingInvitation', JSON.stringify(inviteData));
 
       // Redirect to login/signup with pre-filled email
-      navigate(`/auth?email=${encodeURIComponent(inviteData.email)}&redirect=family-invite-complete`);
+      navigate(`/signin?email=${encodeURIComponent(inviteData.email)}&redirect=family-invite-complete`);
       return;
     }
 
@@ -112,17 +113,19 @@ const FamilyInviteAccept: React.FC = () => {
       }
 
       // Add user to family (create new record since we're not using database validation)
+      // Accept existing invitation by updating pending record
       const { error: memberError } = await supabase
         .from('family_members')
-        .insert({
-          family_id: inviteData.familyId,
+        .update({
           user_id: user.id,
-          role: inviteData.role || 'member',
           status: 'accepted',
-          invited_by: null,
-          invited_at: new Date().toISOString(),
           accepted_at: new Date().toISOString()
-        });
+        } as Database['public']['Tables']['family_members']['Update'])
+        .eq('family_id', inviteData.familyId)
+        .eq('email', inviteData.email)
+        .eq('invite_token', inviteData.token)
+        .eq('status', 'pending');
+
 
       if (memberError) {
         console.error('Error adding family member:', memberError);
@@ -229,7 +232,7 @@ const FamilyInviteAccept: React.FC = () => {
             <p className="text-gray-600 mb-4">
               Please sign in to accept this family invitation.
             </p>
-            <Button onClick={() => navigate('/signin')} className="w-full">
+            <Button onClick={acceptInvite} className="w-full">
               Sign In
             </Button>
           </CardContent>

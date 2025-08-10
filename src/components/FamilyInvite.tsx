@@ -559,25 +559,45 @@ const FamilyInvite: React.FC = () => {
       // In a production app, you might want to implement email verification
       // or use a different method to check if the user exists
       
-      // SIMPLE APPROACH: Just create a family directly for the invitation
-      console.log('🏗️ Creating family directly for invitation...');
+      let familyId = family?.id;
+      if (!familyId) {
+        // Create a family for the inviter if they don't have one yet
+        const { data: newFamily, error: familyError } = await supabase
+          .from('families')
+          .insert({
+            name: `${user.email?.split('@')[0]}'s Family`,
+            created_by: user.id
+          })
+          .select()
+          .single();
 
-      const { data: inviteFamily, error: familyError } = await supabase
-        .from('families')
-        .insert({
-          name: `${user.email?.split('@')[0]}'s Family - ${Date.now()}`,
-          created_by: user.id
-        })
-        .select()
-        .single();
+        if (familyError || !newFamily) {
+          console.error('❌ Failed to create family:', familyError);
+          throw familyError || new Error('Failed to create family');
+        }
 
-      if (familyError || !inviteFamily) {
-        console.error('❌ Failed to create family:', familyError);
-        throw new Error('Failed to create family for invitation');
+        familyId = newFamily.id;
+        setFamily(newFamily);
+
+        // Ensure inviter is added as a member and profile points to the family
+        await supabase
+          .from('family_members')
+          .upsert({
+            family_id: familyId,
+            user_id: user.id,
+            role: 'parent',
+            status: 'accepted',
+            invited_by: user.id,
+            invited_at: new Date().toISOString(),
+            accepted_at: new Date().toISOString()
+          }, { onConflict: 'family_id,user_id' });
+
+        await supabase
+          .from('user_profiles')
+          .update({ family_id: familyId })
+          .eq('user_id', user.id);
       }
 
-      const familyId = inviteFamily.id;
-      console.log('✅ Family created for invitation:', familyId);
 
       // Generate invite link
       const inviteToken = crypto.randomUUID();
@@ -644,15 +664,24 @@ const FamilyInvite: React.FC = () => {
         throw new Error('No family found. Please create a family first.');
       }
 
-      // SKIP DATABASE STORAGE FOR NOW - just send email
-      console.log('📝 Skipping database storage - sending email only');
-      console.log('📋 Invitation details:', {
-        familyId,
-        inviteEmail,
-        inviteRole,
-        inviteToken,
-        inviteLink
-      });
+      // Create pending invitation in DB so invitee can accept securely
+      const { error: inviteRecError } = await supabase
+        .from('family_members')
+        .insert({
+          family_id: familyId,
+          email: inviteEmail,
+          role: inviteRole,
+          status: 'pending',
+          invited_by: user.id,
+          invited_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          invite_token: inviteToken
+        } as Database['public']['Tables']['family_members']['Insert']);
+
+      if (inviteRecError) {
+        console.error('❌ Failed to create pending invitation:', inviteRecError);
+      }
+
 
       toast({
         title: "Invitation Sent! 📧",

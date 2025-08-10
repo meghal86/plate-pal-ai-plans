@@ -459,6 +459,7 @@ const Family = () => {
                   <Badge variant="secondary">
                     {familyMembers.length} member{familyMembers.length !== 1 ? 's' : ''}
                   </Badge>
+
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -471,7 +472,9 @@ const Family = () => {
                 </div>
                 
                 {/* Enhanced Invite Section */}
-                <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+                {currentFamily?.created_by === user?.id && (
+                  <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+
                   <DialogTrigger asChild>
                     <Button className="w-full sm:w-auto">
                       <UserPlus className="h-4 w-4 mr-2" />
@@ -515,7 +518,7 @@ const Family = () => {
                       </Button>
                     </div>
                   </DialogContent>
-                </Dialog>
+                </Dialog>)}
               </CardContent>
             </Card>
 
@@ -537,9 +540,12 @@ const Family = () => {
                             <Users className="h-4 w-4 text-blue-600" />
                           </div>
                           <div>
-                            <p className="font-medium">Family Member</p>
-                            <p className="text-sm text-muted-foreground capitalize">{member.role}</p>
+                            <p className="font-medium">{member.user_id === currentFamily?.created_by ? 'Admin' : 'Family Member'}</p>
+                            <p className="text-sm text-muted-foreground capitalize">
+                              {member.role}{member.user_id === currentFamily?.created_by ? ' (admin)' : ''}
+                            </p>
                           </div>
+
                         </div>
                         {getStatusBadge(member.status)}
                       </div>
