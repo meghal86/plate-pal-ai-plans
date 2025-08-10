@@ -1,77 +1,72 @@
-// Service Worker for Kids Meal Planner Notifications
-
-const CACHE_NAME = 'kids-meal-planner-v1';
-const urlsToCache = [
-  '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
-  '/icon-192x192.png',
-  '/badge-72x72.png'
-];
+// Service Worker for Diet Plan Notifications
+const CACHE_NAME = 'diet-plan-notifications-v1';
 
 // Install event
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(urlsToCache);
-      })
-  );
+  console.log('Service Worker: Install event');
+  self.skipWaiting();
 });
 
-// Fetch event
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
-      })
-  );
+// Activate event
+self.addEventListener('activate', (event) => {
+  console.log('Service Worker: Activate event');
+  event.waitUntil(self.clients.claim());
 });
 
-// Notification click event
+// Handle notification click
 self.addEventListener('notificationclick', (event) => {
+  console.log('Service Worker: Notification click event', event);
+  
   const notification = event.notification;
   const action = event.action;
+  const data = notification.data || {};
   
   notification.close();
   
-  if (action === 'view') {
-    // Open the app to view the recipe
+  if (action === 'view' || !action) {
+    // Open the app when notification is clicked
     event.waitUntil(
-      clients.openWindow('/?tab=kids&subtab=school-meals')
+      self.clients.matchAll({ type: 'window' }).then((clients) => {
+        // Check if app is already open
+        for (const client of clients) {
+          if (client.url.includes('/upload') && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        
+        // Open new window if app is not open
+        if (self.clients.openWindow) {
+          return self.clients.openWindow('/upload?tab=calendar');
+        }
+      })
     );
   } else if (action === 'dismiss') {
-    // Just close the notification
-    return;
-  } else {
-    // Default action - open the app
+    // Just close the notification (already done above)
+    console.log('Notification dismissed');
+  }
+});
+
+// Handle notification close
+self.addEventListener('notificationclose', (event) => {
+  console.log('Service Worker: Notification close event', event);
+});
+
+// Handle background sync (for future use)
+self.addEventListener('sync', (event) => {
+  console.log('Service Worker: Background sync event', event);
+  
+  if (event.tag === 'diet-plan-sync') {
     event.waitUntil(
-      clients.openWindow('/?tab=kids')
+      // Sync diet plan data when back online
+      syncDietPlanData()
     );
   }
 });
 
-// Background sync for offline functionality
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'meal-plan-sync') {
-    event.waitUntil(syncMealPlans());
-  }
-});
-
-async function syncMealPlans() {
-  try {
-    // Sync any pending meal plan data when back online
-    console.log('Syncing meal plans...');
-    // Implementation would depend on your backend sync strategy
-  } catch (error) {
-    console.error('Failed to sync meal plans:', error);
-  }
-}
-
-// Push event for server-sent notifications (if implemented)
+// Handle push messages (for future server-sent notifications)
 self.addEventListener('push', (event) => {
+  console.log('Service Worker: Push event', event);
+  
   if (event.data) {
     const data = event.data.json();
     
@@ -79,22 +74,19 @@ self.addEventListener('push', (event) => {
       body: data.body,
       icon: '/icon-192x192.png',
       badge: '/badge-72x72.png',
-      tag: data.tag || 'meal-reminder',
-      data: data.data,
+      tag: data.tag || 'diet-plan-notification',
+      data: data.data || {},
+      requireInteraction: false,
       actions: [
         {
           action: 'view',
-          title: 'View Recipe',
-          icon: '/icons/view.png'
+          title: 'View Details'
         },
         {
           action: 'dismiss',
-          title: 'Dismiss',
-          icon: '/icons/dismiss.png'
+          title: 'Dismiss'
         }
-      ],
-      requireInteraction: false,
-      silent: false
+      ]
     };
     
     event.waitUntil(
@@ -102,3 +94,23 @@ self.addEventListener('push', (event) => {
     );
   }
 });
+
+// Sync function for future use
+async function syncDietPlanData() {
+  try {
+    console.log('Syncing diet plan data...');
+    // Future: Sync offline changes when back online
+    return Promise.resolve();
+  } catch (error) {
+    console.error('Failed to sync diet plan data:', error);
+    return Promise.reject(error);
+  }
+}
+
+// Handle fetch events (for future caching)
+self.addEventListener('fetch', (event) => {
+  // For now, just let all requests pass through
+  // Future: Add caching for offline support
+});
+
+console.log('Diet Plan Service Worker loaded successfully');

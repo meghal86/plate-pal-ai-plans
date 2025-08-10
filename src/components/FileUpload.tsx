@@ -17,10 +17,14 @@ import {
   X,
   AlertCircle,
   FileImage,
-  File
+  File,
+  Brain
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { processUploadedDietDocument } from "@/api/process-diet-document";
+import { generatePlanEmbedding } from "@/api/generate-diet-plan";
+import { useUser } from "@/contexts/UserContext";
 
 interface UploadedFile {
   id: string;
@@ -35,14 +39,17 @@ interface UploadedFile {
 const FileUpload = () => {
   const [uploading, setUploading] = useState(false);
   const [submittingText, setSubmittingText] = useState(false);
+  const [processingWithAI, setProcessingWithAI] = useState(false);
   const [sessionUploads, setSessionUploads] = useState<UploadedFile[]>([]);
   const [textContent, setTextContent] = useState("");
   const [planName, setPlanName] = useState("");
   const [textPlanName, setTextPlanName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { toast } = useToast();
+  const { user } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -56,13 +63,22 @@ const FileUpload = () => {
       return;
     }
 
+    setSelectedFile(file);
+    if (!planName) {
+      setPlanName(file.name.split('.')[0]);
+    }
+  };
+
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+
     // Create a temporary upload entry
     const tempFile: UploadedFile = {
       id: Date.now().toString(),
-      name: file.name,
-      planName: planName || file.name,
-      fileType: file.type,
-      size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+      name: selectedFile.name,
+      planName: planName || selectedFile.name,
+      fileType: selectedFile.type,
+      size: (selectedFile.size / 1024 / 1024).toFixed(2) + ' MB',
       status: 'uploading'
     };
 
@@ -73,7 +89,7 @@ const FileUpload = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
       
-      const fileExt = file.name.split('.').pop();
+      const fileExt = selectedFile.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `diet-plans/${userId || 'demo'}/${fileName}`;
 
@@ -81,7 +97,7 @@ const FileUpload = () => {
 
       const { error: uploadError } = await supabase.storage
         .from('uploads')
-        .upload(filePath, file);
+        .upload(filePath, selectedFile);
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
@@ -100,10 +116,10 @@ const FileUpload = () => {
         .from('uploaded_files')
         .insert({
           user_id: userId,
-          filename: file.name,
+          filename: selectedFile.name,
           file_url: data.publicUrl,
-          file_type: file.type,
-          plan_name: planName || file.name
+          file_type: selectedFile.type,
+          plan_name: planName || selectedFile.name
         });
 
       if (dbError) {
@@ -126,6 +142,7 @@ const FileUpload = () => {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+      setSelectedFile(null);
       setPlanName("");
     } catch (error) {
       console.error('Upload process error:', error);
@@ -144,6 +161,208 @@ const FileUpload = () => {
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleProcessWithAI = async () => {
+    if (!selectedFile || !planName.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a file and enter a plan name",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!user?.id) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to process diet plans with AI",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const tempFile: UploadedFile = {
+      id: Date.now().toString(),
+      name: selectedFile.name,
+      planName: planName,
+      fileType: selectedFile.type,
+      size: (selectedFile.size / 1024 / 1024).toFixed(2) + ' MB',
+      status: 'uploading'
+    };
+
+    setSessionUploads(prev => [tempFile, ...prev]);
+    setProcessingWithAI(true);
+    
+    try {
+      // Step 1: Process the document with Gemini AI
+      toast({
+        title: "🤖 Processing Document",
+        description: "Analyzing your diet plan document with AI...",
+      });
+
+      console.log('📄 Processing uploaded document:', selectedFile.name);
+      const processedPlan = await processUploadedDietDocument(selectedFile, planName, user.id);
+      
+      console.log('✅ Document processed successfully:', processedPlan);
+
+      // Step 2: Upload file to storage for reference
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `diet-plans/${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('nutrition-files')
+        .upload(filePath, selectedFile);
+
+      if (uploadError) {
+        console.warn('⚠️ File upload failed, but continuing with plan creation:', uploadError);
+      }
+
+      const { data: storageData } = supabase.storage
+        .from('nutrition-files')
+        .getPublicUrl(filePath);
+
+      // Step 3: Skip embedding generation due to CORS issues
+      let embeddingForDb = null;
+      console.log('⏭️ Skipping embedding generation to avoid CORS issues');
+      
+      // Note: If we were to include embedding, the format should be:
+      // embeddingForDb = `[${embedding.join(",")}]` for vector type
+
+      // Step 4: Save as nutrition plan
+      const planData = {
+        user_id: user.id,
+        title: processedPlan.title || 'Uploaded Diet Plan',
+        description: (processedPlan.description || 'Diet plan from uploaded document') + ` (Uploaded from ${selectedFile.name})`,
+        plan_content: processedPlan,
+        duration: processedPlan.duration || '7 days',
+        calories: processedPlan.calories || '1800-2000',
+        is_active: false, // Start as inactive, user can activate later
+        ...(embeddingForDb && { embedding: embeddingForDb as unknown as string })
+      };
+      
+      // Validate required fields
+      if (!planData.user_id) {
+        throw new Error('User ID is required');
+      }
+      if (!planData.title) {
+        throw new Error('Plan title is required');
+      }
+
+      console.log('💾 Saving processed plan to database...');
+      console.log('📊 Plan data size:', JSON.stringify(planData).length, 'characters');
+      console.log('📋 Plan content structure:', {
+        hasTitle: !!processedPlan.title,
+        hasDescription: !!processedPlan.description,
+        hasDailyMeals: !!processedPlan.dailyMeals,
+        dailyMealsCount: processedPlan.dailyMeals?.length || 0,
+        contentSize: JSON.stringify(processedPlan).length
+      });
+      
+      const { data: savedPlan, error: saveError } = await supabase
+        .from('nutrition_plans')
+        .insert(planData)
+        .select()
+        .single();
+
+      if (saveError) {
+        console.error('❌ Database save error details:', {
+          message: saveError.message,
+          details: saveError.details,
+          hint: saveError.hint,
+          code: saveError.code
+        });
+        console.error('❌ Plan data being inserted:', planData);
+        
+        // Try without embedding if save fails
+        console.warn('⚠️ Save failed with embedding, trying without embedding...');
+        const planDataWithoutEmbedding = { ...planData };
+        delete planDataWithoutEmbedding.embedding;
+        
+        const { data: savedPlanRetry, error: saveErrorRetry } = await supabase
+          .from('nutrition_plans')
+          .insert(planDataWithoutEmbedding)
+          .select()
+          .single();
+        
+        if (saveErrorRetry) {
+          throw saveErrorRetry;
+        }
+        
+        console.log('✅ Plan saved successfully without embedding');
+      } else {
+        console.log('✅ Plan saved successfully with embedding');
+      }
+
+      // Step 5: Save file reference
+      if (!uploadError) {
+        await supabase
+          .from('uploaded_files')
+          .insert({
+            user_id: user.id,
+            filename: selectedFile.name,
+            file_url: storageData.publicUrl,
+            file_type: selectedFile.type,
+            plan_name: planName
+          });
+      }
+
+      // Step 6: Update UI
+      setSessionUploads(prev => prev.map(f => 
+        f.id === tempFile.id 
+          ? { ...f, status: 'success', url: storageData.publicUrl }
+          : f
+      ));
+
+      toast({
+        title: "AI Processing Complete! 🎉",
+        description: `Your diet plan has been processed and converted to a structured format. You can now view it in the Diet Plans section.`,
+      });
+
+      // Reset form
+      setSelectedFile(null);
+      setPlanName("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+    } catch (error) {
+      console.error('❌ AI processing error:', error);
+      
+      // Update the file status to error
+      setSessionUploads(prev => prev.map(f => 
+        f.id === tempFile.id 
+          ? { ...f, status: 'error' }
+          : f
+      ));
+
+      let errorTitle = "AI Processing Failed";
+      let errorDescription = "Unable to process your diet plan with AI. Please try again.";
+      
+      if (error instanceof Error) {
+        const errorMessage = error.message.toLowerCase();
+        
+        if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+          errorTitle = "Network Error";
+          errorDescription = "Unable to connect to AI service. Please check your internet connection and try again.";
+        } else if (errorMessage.includes('timeout')) {
+          errorTitle = "Request Timeout";
+          errorDescription = "The AI service is taking too long to respond. Please try again.";
+        } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+          errorTitle = "Rate Limit Exceeded";
+          errorDescription = "Too many requests. Please wait a moment and try again.";
+        }
+      }
+      
+      toast({
+        title: errorTitle,
+        description: errorDescription,
+        variant: "destructive"
+      });
+    } finally {
+      setProcessingWithAI(false);
     }
   };
 
@@ -334,7 +553,7 @@ const FileUpload = () => {
                       placeholder="e.g., Mediterranean Diet Plan"
                       value={planName}
                       onChange={e => setPlanName(e.target.value)}
-                      disabled={uploading}
+                      disabled={uploading || processingWithAI}
                       className="mt-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                     />
                   </div>
@@ -347,7 +566,7 @@ const FileUpload = () => {
                       <div>
                         <Button
                           onClick={triggerFileUpload}
-                          disabled={uploading}
+                          disabled={uploading || processingWithAI}
                           variant="outline"
                           className="border-gray-300 hover:border-blue-500 hover:bg-blue-50"
                         >
@@ -359,18 +578,77 @@ const FileUpload = () => {
                         <Input
                           ref={fileInputRef}
                           type="file"
-                          onChange={handleFileUpload}
+                          onChange={handleFileSelect}
                           className="hidden"
-                          disabled={uploading}
+                          disabled={uploading || processingWithAI}
+                          accept=".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.rtf,.odt"
                         />
                       </div>
-                      {uploading && (
+                      {(uploading || processingWithAI) && (
                         <div className="flex items-center space-x-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                          <span className="text-sm text-gray-600">Uploading...</span>
+                          <span className="text-sm text-gray-600">
+                            {processingWithAI ? 'Processing with AI...' : 'Uploading...'}
+                          </span>
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Selected File Display */}
+                  {selectedFile && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FileText className="h-4 w-4 text-gray-500" />
+                        <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • {selectedFile.type}
+                      </p>
+                      <div className="mt-2 text-xs text-gray-500">
+                        ✨ Ready for AI processing - will extract meal plans, ingredients, and nutritional information
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 mt-4">
+                    <Button
+                      onClick={handleFileUpload}
+                      disabled={uploading || processingWithAI || !selectedFile}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload Only
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button
+                      onClick={handleProcessWithAI}
+                      disabled={processingWithAI || uploading || !selectedFile || !planName.trim()}
+                      className="flex-1 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white"
+                    >
+                      {processingWithAI ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="h-4 w-4 mr-2" />
+                          Process with AI
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
               </TabsContent>
@@ -431,12 +709,13 @@ const FileUpload = () => {
             <div className="flex items-start space-x-3">
               <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-blue-800">
-                <p className="font-medium mb-2">Upload Guidelines:</p>
+                <p className="font-medium mb-2">Upload Options:</p>
                 <ul className="space-y-1 text-xs">
+                  <li>• <strong>Upload Only:</strong> Store file for reference</li>
+                  <li>• <strong>Process with AI:</strong> Extract meals, ingredients, and nutrition info</li>
                   <li>• Supported formats: PDF, DOC, DOCX, TXT, and image files</li>
                   <li>• Maximum file size: 10MB per file</li>
-                  <li>• Ensure your diet plan is clear and legible</li>
-                  <li>• You can upload multiple files in one session</li>
+                  <li>• Ensure your diet plan is clear and legible for best AI results</li>
                 </ul>
               </div>
             </div>

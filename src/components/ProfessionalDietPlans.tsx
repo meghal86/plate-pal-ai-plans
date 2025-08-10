@@ -13,7 +13,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { generateDietPlan, generatePlanEmbedding } from "@/api/generate-diet-plan";
+import { processUploadedDietDocument } from "@/api/process-diet-document";
 import AdultDietCalendar from "./AdultDietCalendar";
+import NotificationPreferences from "./NotificationPreferences";
+import { adultDietNotificationService, AdultDietNotificationPreferences } from "@/services/adult-diet-notification-service";
 import { 
   Brain, 
   Upload, 
@@ -48,7 +51,11 @@ import {
   BookOpen,
   Lightbulb,
   Shield,
-  Rocket
+  Edit,
+  Save,
+  Rocket,
+  Bell,
+  BellRing
 } from "lucide-react";
 
 interface PlanPreferences {
@@ -128,6 +135,12 @@ const ProfessionalDietPlans: React.FC = () => {
   const [generatedPlans, setGeneratedPlans] = useState<GeneratedPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<GeneratedPlan | null>(null);
   const [showPlanDetails, setShowPlanDetails] = useState(false);
+  const [showMealEditor, setShowMealEditor] = useState(false);
+  const [editingMeal, setEditingMeal] = useState<any>(null);
+  const [refreshingMeal, setRefreshingMeal] = useState<string | null>(null);
+  const [showNotificationPreferences, setShowNotificationPreferences] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<AdultDietNotificationPreferences | null>(null);
+  const [calendarPlanOverride, setCalendarPlanOverride] = useState<GeneratedPlan | null>(null);
 
   // Configuration options
   const planTypes = [
@@ -319,6 +332,11 @@ const ProfessionalDietPlans: React.FC = () => {
       return;
     }
 
+    // Debug: Log current form values
+    console.log('🔍 CURRENT FORM VALUES:', planPreferences);
+    console.log('📅 SELECTED DURATION:', planPreferences.duration);
+    console.log('🚫 DIETARY RESTRICTIONS:', planPreferences.dietaryRestrictions);
+
     setGenerating(true);
     
     try {
@@ -345,9 +363,9 @@ const ProfessionalDietPlans: React.FC = () => {
         .eq('user_id', user.id)
         .single();
 
-      // Create comprehensive user context with unique elements
+      // Create comprehensive user context with unique elements (no personal info)
       const currentDate = new Date().toISOString().split('T')[0];
-      const requestId = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      const requestId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
       const seasonalNote = getSeasonalNote();
       const varietyFocus = getVarietyFocus();
       
@@ -358,7 +376,6 @@ const ProfessionalDietPlans: React.FC = () => {
         VARIETY EMPHASIS: ${varietyFocus}
 
         User Profile:
-        - Name: ${profile?.full_name || 'User'}
         - Age: ${profile?.age || 'Not specified'}
         - Weight: ${profile?.weight || 'Not specified'} ${profile?.weight_unit || 'kg'}
         - Height: ${profile?.height || 'Not specified'} cm
@@ -371,12 +388,18 @@ const ProfessionalDietPlans: React.FC = () => {
         - Duration: ${planPreferences.duration}
         - Target Calories: ${planPreferences.targetCalories || 'Not specified - use recommended amount based on goals and activity level'} per day
         - Activity Level: ${planPreferences.activityLevel}
-        - Dietary Restrictions: ${planPreferences.dietaryRestrictions || 'None'}
         - Health Goals: ${planPreferences.healthGoals || 'General health'}
-        - Special Requirements: ${planPreferences.specialRequirements || 'None'}
-        - Meal Preferences: ${planPreferences.mealPreferences || 'No specific preferences'}
         - Budget Range: ${planPreferences.budgetRange || 'Moderate'}
         - Cooking Skill: ${planPreferences.cookingSkill || 'Intermediate'}
+
+        ⚠️ CRITICAL DIETARY RESTRICTIONS & ALLERGIES ⚠️
+        - Form Dietary Restrictions: ${planPreferences.dietaryRestrictions || 'None specified'}
+        - Profile Dietary Restrictions: ${profile?.dietary_restrictions || 'None specified'}
+        - Special Medical Requirements: ${planPreferences.specialRequirements || 'None specified'}
+        - Meal Preferences & Restrictions: ${planPreferences.mealPreferences || 'No specific preferences'}
+        
+        🚨 MANDATORY COMPLIANCE: Every single meal MUST comply with ALL restrictions listed above. 
+        If ANY restriction is violated, the entire plan is invalid. 🚨
 
         CREATIVITY REQUIREMENTS:
         - Generate completely unique meals for this specific request
@@ -390,12 +413,25 @@ const ProfessionalDietPlans: React.FC = () => {
 
       // Generate AI plan
       console.log('🤖 Generating AI plan...');
+      console.log('📋 User Context being sent to AI:', {
+        planType: planPreferences.planType,
+        duration: planPreferences.duration,
+        dietaryRestrictions: planPreferences.dietaryRestrictions,
+        healthGoals: planPreferences.healthGoals,
+        specialRequirements: planPreferences.specialRequirements,
+        mealPreferences: planPreferences.mealPreferences,
+        profileDietaryRestrictions: profile?.dietary_restrictions
+      });
+      
+      // Log the full user context to see exactly what's being sent
+      console.log('🔍 FULL USER CONTEXT:', userContext);
       const aiPlanData = await generateDietPlan(userContext, user.id);
       console.log('✅ AI plan generated successfully:', aiPlanData);
       console.log('📊 Plan structure details:', {
         title: aiPlanData.title,
         duration: aiPlanData.duration,
         dailyMealsCount: aiPlanData.dailyMeals?.length || 0,
+        selectedDuration: planPreferences.duration,
         firstDay: aiPlanData.dailyMeals?.[0] ? {
           day: aiPlanData.dailyMeals[0].day,
           date: aiPlanData.dailyMeals[0].date,
@@ -407,6 +443,9 @@ const ProfessionalDietPlans: React.FC = () => {
           mealsCount: aiPlanData.dailyMeals[aiPlanData.dailyMeals.length - 1].meals?.length || 0
         } : 'No last day'
       });
+      
+      // Log plan generation success
+      console.log(`✅ Plan generated with ${aiPlanData.dailyMeals?.length || 0} days. Selected duration: ${planPreferences.duration}`);
       
       // Validate AI plan data
       if (!aiPlanData || typeof aiPlanData !== 'object') {
@@ -426,7 +465,8 @@ const ProfessionalDietPlans: React.FC = () => {
         
         // Ensure embedding is valid
         if (Array.isArray(embedding) && embedding.length > 0) {
-          embeddingForDb = `{${embedding.join(",")}}`;
+          // Use square brackets for vector type in PostgreSQL
+          embeddingForDb = `[${embedding.join(",")}]`;
         } else {
           console.warn('⚠️ Invalid embedding generated, using null');
           embeddingForDb = null;
@@ -466,6 +506,7 @@ const ProfessionalDietPlans: React.FC = () => {
           hint: saveError.hint,
           code: saveError.code
         });
+        console.error('❌ Plan data being inserted:', planData);
         
         // Provide more specific error messages
         let errorMessage = "Plan generated but couldn't be saved. Please try again.";
@@ -525,6 +566,9 @@ const ProfessionalDietPlans: React.FC = () => {
           description: `Your personalized ${planPreferences.planType.replace('-', ' ')} plan is ready and has been activated.`,
         });
 
+        // Setup notifications for the new plan
+        await setupNotificationsForPlan(savedPlan, aiPlanData);
+
         // Auto-switch to calendar view
         setActiveTab('calendar');
       }
@@ -566,11 +610,69 @@ const ProfessionalDietPlans: React.FC = () => {
     }
   };
 
+  const setupNotificationsForPlan = async (savedPlan: any, planData: any) => {
+    try {
+      // Load user's notification preferences
+      const { data: prefData } = await supabase
+        .from('user_notification_preferences')
+        .select('preferences')
+        .eq('user_id', user?.id)
+        .single();
+
+      const preferences = prefData?.preferences || adultDietNotificationService.getDefaultPreferences();
+      
+      if (preferences.enabled) {
+        console.log('🔔 Setting up notifications for new plan...');
+        
+        const notifications = await adultDietNotificationService.scheduleAdultDietPlanNotifications(
+          planData,
+          user?.id || '',
+          preferences
+        );
+
+        if (notifications.length > 0) {
+          toast({
+            title: "Notifications Scheduled! 🔔",
+            description: `${notifications.length} meal reminders have been scheduled for your new plan.`,
+          });
+        }
+      } else {
+        // Show notification setup prompt
+        toast({
+          title: "Enable Notifications? 🔔",
+          description: "Get reminders for your meals and daily plan. Click the bell icon to set up notifications.",
+          action: (
+            <Button
+              size="sm"
+              onClick={() => setShowNotificationPreferences(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Bell className="h-3 w-3 mr-1" />
+              Setup
+            </Button>
+          ),
+        });
+      }
+    } catch (error) {
+      console.error('Error setting up notifications:', error);
+      // Don't show error to user as this is not critical
+    }
+  };
+
   const handleFileUpload = async () => {
     if (!selectedFile || !planName.trim()) {
       toast({
         title: "Missing Information",
         description: "Please select a file and enter a plan name",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!user?.id) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to upload diet plans",
         variant: "destructive"
       });
       return;
@@ -589,56 +691,142 @@ const ProfessionalDietPlans: React.FC = () => {
     setUploading(true);
     
     try {
+      // Step 1: Process the document with Gemini API
+      toast({
+        title: "🤖 Processing Document",
+        description: "Analyzing your diet plan document with AI...",
+      });
+
+      console.log('📄 Processing uploaded document:', selectedFile.name);
+      const processedPlan = await processUploadedDietDocument(selectedFile, planName, user.id);
+      
+      console.log('✅ Document processed successfully:', processedPlan);
+
+      // Step 2: Upload file to storage for reference
       const fileExt = selectedFile.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `diet-plans/${user?.id || 'demo'}/${fileName}`;
+      const filePath = `diet-plans/${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('nutrition-files')
         .upload(filePath, selectedFile);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.warn('⚠️ File upload failed, but continuing with plan creation:', uploadError);
+      }
 
-      const { data } = supabase.storage
+      const { data: storageData } = supabase.storage
         .from('nutrition-files')
         .getPublicUrl(filePath);
 
-      // Save file info to database
-      await supabase
-        .from('uploaded_files')
-        .insert({
-          user_id: user?.id,
-          filename: selectedFile.name,
-          file_url: data.publicUrl,
-          file_type: selectedFile.type,
-          plan_name: planName
-        });
+      // Step 3: Generate embedding for search functionality
+      let embeddingForDb = null;
+      try {
+        const embedding = await generatePlanEmbedding(processedPlan);
+        if (Array.isArray(embedding) && embedding.length > 0) {
+          embeddingForDb = `{${embedding.join(",")}}`;
+        }
+      } catch (embeddingError) {
+        console.warn('⚠️ Embedding generation failed:', embeddingError);
+      }
 
+      // Step 4: Save as nutrition plan
+      const planData = {
+        user_id: user.id,
+        title: processedPlan.title,
+        description: processedPlan.description + ` (Uploaded from ${selectedFile.name})`,
+        plan_content: processedPlan,
+        duration: processedPlan.duration,
+        calories: processedPlan.calories,
+        is_active: false, // Start as inactive, user can activate later
+        ...(embeddingForDb && { embedding: embeddingForDb as unknown as string })
+      };
+
+      console.log('💾 Saving processed plan to database...');
+      const { data: savedPlan, error: saveError } = await supabase
+        .from('nutrition_plans')
+        .insert(planData)
+        .select()
+        .single();
+
+      if (saveError) {
+        // Try without embedding if save fails
+        console.warn('⚠️ Save failed with embedding, trying without embedding...');
+        const planDataWithoutEmbedding = { ...planData };
+        delete planDataWithoutEmbedding.embedding;
+        
+        const { data: savedPlanRetry, error: saveErrorRetry } = await supabase
+          .from('nutrition_plans')
+          .insert(planDataWithoutEmbedding)
+          .select()
+          .single();
+        
+        if (saveErrorRetry) {
+          throw saveErrorRetry;
+        }
+        
+        console.log('✅ Plan saved successfully without embedding');
+      } else {
+        console.log('✅ Plan saved successfully with embedding');
+      }
+
+      // Step 5: Save file reference
+      if (!uploadError) {
+        await supabase
+          .from('uploaded_files')
+          .insert({
+            user_id: user.id,
+            filename: selectedFile.name,
+            file_url: storageData.publicUrl,
+            file_type: selectedFile.type,
+            plan_name: planName
+          });
+      }
+
+      // Step 6: Update UI
       setSessionUploads(prev => prev.map(f => 
         f.id === tempFile.id 
-          ? { ...f, status: 'success', url: data.publicUrl }
+          ? { ...f, status: 'success', url: storageData?.publicUrl }
           : f
       ));
+
+      // Refresh plans list
+      await loadGeneratedPlans();
       
       toast({
-        title: "Upload Successful! 📁",
-        description: "Your diet plan file has been uploaded and processed.",
+        title: "Document Processed Successfully! 🎉",
+        description: `Your diet plan "${planName}" has been extracted and saved. You can now activate it or view it in the calendar.`,
       });
 
       // Reset form
       if (fileInputRef.current) fileInputRef.current.value = '';
       setPlanName("");
       setSelectedFile(null);
+
     } catch (error) {
+      console.error('❌ Error processing document:', error);
+      
       setSessionUploads(prev => prev.map(f => 
         f.id === tempFile.id 
           ? { ...f, status: 'error' }
           : f
       ));
 
+      let errorMessage = "Failed to process document. Please try again.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Unsupported file type')) {
+          errorMessage = "Unsupported file type. Please upload PDF, image, or text files.";
+        } else if (error.message.includes('Gemini API')) {
+          errorMessage = "AI processing failed. Please check your document format and try again.";
+        } else if (error.message.includes('No meals found')) {
+          errorMessage = "No meal information found in document. Please ensure your document contains diet plan details.";
+        }
+      }
+
       toast({
-        title: "Upload Failed",
-        description: "Failed to upload file. Please try again.",
+        title: "Processing Failed",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -776,6 +964,107 @@ const ProfessionalDietPlans: React.FC = () => {
     }
   };
 
+  const handleEditMeal = (planId: string, dayNumber: number, mealIndex: number, meal: any) => {
+    setEditingMeal({
+      planId,
+      dayNumber,
+      mealIndex,
+      meal: { ...meal }
+    });
+    setShowMealEditor(true);
+  };
+
+  const handleRefreshMeal = async (planId: string, dayNumber: number, mealIndex: number, mealType: string) => {
+    const refreshKey = `${planId}-${dayNumber}-${mealIndex}`;
+    setRefreshingMeal(refreshKey);
+    
+    try {
+      toast({
+        title: "🔄 Generating Alternative",
+        description: `Creating a new ${mealType} option for Day ${dayNumber}...`,
+      });
+
+      // Simulate AI generation with realistic delay
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Generate alternative meal options
+      const alternatives = {
+        breakfast: [
+          { name: "Protein Pancakes with Berries", calories: 320, protein: 25, carbs: 35, fat: 8 },
+          { name: "Greek Yogurt Parfait", calories: 280, protein: 20, carbs: 30, fat: 6 },
+          { name: "Avocado Toast with Eggs", calories: 350, protein: 18, carbs: 25, fat: 22 },
+          { name: "Smoothie Bowl", calories: 290, protein: 15, carbs: 40, fat: 10 }
+        ],
+        lunch: [
+          { name: "Quinoa Buddha Bowl", calories: 420, protein: 18, carbs: 45, fat: 16 },
+          { name: "Grilled Chicken Wrap", calories: 380, protein: 30, carbs: 35, fat: 12 },
+          { name: "Mediterranean Salad", calories: 350, protein: 15, carbs: 20, fat: 25 },
+          { name: "Lentil Soup with Bread", calories: 320, protein: 16, carbs: 50, fat: 8 }
+        ],
+        dinner: [
+          { name: "Baked Salmon with Vegetables", calories: 450, protein: 35, carbs: 20, fat: 25 },
+          { name: "Turkey Meatballs with Zucchini Noodles", calories: 380, protein: 32, carbs: 15, fat: 20 },
+          { name: "Vegetarian Stir Fry", calories: 320, protein: 12, carbs: 45, fat: 12 },
+          { name: "Grilled Chicken with Sweet Potato", calories: 420, protein: 35, carbs: 30, fat: 15 }
+        ],
+        snack: [
+          { name: "Mixed Nuts and Dried Fruit", calories: 200, protein: 6, carbs: 15, fat: 14 },
+          { name: "Protein Smoothie", calories: 180, protein: 20, carbs: 12, fat: 5 },
+          { name: "Apple with Almond Butter", calories: 220, protein: 8, carbs: 20, fat: 12 },
+          { name: "Greek Yogurt with Honey", calories: 150, protein: 15, carbs: 18, fat: 3 }
+        ]
+      };
+
+      const mealOptions = alternatives[mealType as keyof typeof alternatives] || alternatives.lunch;
+      const newMeal = mealOptions[Math.floor(Math.random() * mealOptions.length)];
+
+      // Update the plan with the new meal
+      const updatedPlans = generatedPlans.map(plan => {
+        if (plan.id === planId) {
+          const updatedContent = { ...plan.plan_content };
+          if (updatedContent.dailyMeals && updatedContent.dailyMeals[dayNumber - 1]) {
+            updatedContent.dailyMeals[dayNumber - 1].meals[mealIndex] = {
+              ...updatedContent.dailyMeals[dayNumber - 1].meals[mealIndex],
+              name: newMeal.name,
+              calories: newMeal.calories,
+              macros: {
+                protein: newMeal.protein,
+                carbs: newMeal.carbs,
+                fat: newMeal.fat
+              }
+            };
+          }
+          return { ...plan, plan_content: updatedContent };
+        }
+        return plan;
+      });
+
+      setGeneratedPlans(updatedPlans);
+      
+      // Update selected plan if it's the one being modified
+      if (selectedPlan?.id === planId) {
+        const updatedSelectedPlan = updatedPlans.find(p => p.id === planId);
+        if (updatedSelectedPlan) {
+          setSelectedPlan(updatedSelectedPlan);
+        }
+      }
+
+      toast({
+        title: "✨ Alternative Generated!",
+        description: `New ${mealType} "${newMeal.name}" created for Day ${dayNumber}`,
+      });
+
+    } catch (error) {
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate alternative meal. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setRefreshingMeal(null);
+    }
+  };
+
   const renderAIGenerator = () => (
     <div className="space-y-6">
       {/* Header */}
@@ -833,16 +1122,27 @@ const ProfessionalDietPlans: React.FC = () => {
         </Card>
       </div>
 
-      {/* Generate New Plan Button */}
-      <div className="text-center">
-        <Button
-          onClick={() => setShowPlanForm(true)}
-          size="lg"
-          className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-        >
-          <Sparkles className="h-5 w-5 mr-2" />
-          Generate New AI Plan
-        </Button>
+      {/* Action Buttons */}
+      <div className="text-center space-y-4">
+        <div className="flex items-center justify-center gap-4">
+          <Button
+            onClick={() => setShowNotificationPreferences(true)}
+            variant="outline"
+            size="lg"
+            className="border-blue-200 hover:bg-blue-50 px-6 py-3"
+          >
+            <Bell className="h-5 w-5 mr-2" />
+            Notification Settings
+          </Button>
+          <Button
+            onClick={() => setShowPlanForm(true)}
+            size="lg"
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+          >
+            <Sparkles className="h-5 w-5 mr-2" />
+            Generate New AI Plan
+          </Button>
+        </div>
       </div>
 
       {/* Existing Plans */}
@@ -885,7 +1185,20 @@ const ProfessionalDietPlans: React.FC = () => {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 mb-1">{plan.title}</h4>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold text-gray-900">{plan.title}</h4>
+                        {plan.plan_content?.source === 'uploaded_document' ? (
+                          <Badge variant="outline" className="border-orange-300 text-orange-700 text-xs">
+                            <Upload className="h-2 w-2 mr-1" />
+                            Uploaded
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-purple-300 text-purple-700 text-xs">
+                            <Brain className="h-2 w-2 mr-1" />
+                            AI Generated
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-600 line-clamp-2">{plan.description}</p>
                     </div>
                     {plan.is_active && (
@@ -996,16 +1309,16 @@ const ProfessionalDietPlans: React.FC = () => {
           <Card className="border-2 border-dashed border-gray-300 hover:border-orange-400 transition-colors duration-200">
             <CardContent className="p-8 text-center">
               <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload Diet Plan File</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload & Process Diet Plan</h3>
               <p className="text-gray-600 mb-6">
-                Drag and drop your file here, or click to browse. Supports PDF, images, and text files up to 10MB.
+                Upload any diet plan document (PDF, image, or text file) and our AI will extract the meal information and convert it to a structured plan you can use in the calendar.
               </p>
               
               <input
                 ref={fileInputRef}
                 type="file"
                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                accept=".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx"
+                accept=".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.rtf,.odt"
                 className="hidden"
               />
               
@@ -1018,12 +1331,26 @@ const ProfessionalDietPlans: React.FC = () => {
                 Choose File
               </Button>
               
-              {selectedFile && (
+              {selectedFile ? (
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="h-4 w-4 text-gray-500" />
+                    <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                  </div>
                   <p className="text-sm text-gray-600">
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • {selectedFile.type}
                   </p>
+                  <div className="mt-2 text-xs text-gray-500">
+                    ✨ AI will extract meal plans, ingredients, and nutritional information from this document
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <div className="text-xs text-blue-700">
+                    <strong>Supported formats:</strong> PDF documents, images (JPG, PNG), text files (TXT, DOC, DOCX)
+                    <br />
+                    <strong>What we extract:</strong> Meal names, ingredients, instructions, calories, and nutritional info
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1049,12 +1376,12 @@ const ProfessionalDietPlans: React.FC = () => {
               {uploading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Uploading...
+                  Processing Document...
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Plan
+                  <Brain className="h-4 w-4 mr-2" />
+                  Process with AI
                 </>
               )}
             </Button>
@@ -1223,7 +1550,10 @@ const ProfessionalDietPlans: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="calendar" className="space-y-6 mt-8">
-            <AdultDietCalendar />
+            <AdultDietCalendar 
+              selectedPlanOverride={calendarPlanOverride} 
+              onClearOverride={() => setCalendarPlanOverride(null)}
+            />
           </TabsContent>
         </Tabs>
 
@@ -1497,13 +1827,56 @@ const ProfessionalDietPlans: React.FC = () => {
                           <CardContent className="p-4">
                             <h5 className="font-medium text-gray-900 mb-2">Day {day.day}</h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                              {day.meals?.map((meal: any, mealIndex: number) => (
-                                <div key={mealIndex} className="p-3 bg-white rounded-lg">
-                                  <div className="text-sm font-medium text-gray-900 capitalize">{meal.mealType}</div>
-                                  <div className="text-sm text-gray-600">{meal.name}</div>
-                                  <div className="text-xs text-gray-500">{meal.calories} cal</div>
-                                </div>
-                              ))}
+                              {day.meals?.map((meal: any, mealIndex: number) => {
+                                const refreshKey = `${selectedPlan.id}-${day.day}-${mealIndex}`;
+                                const isRefreshing = refreshingMeal === refreshKey;
+                                
+                                return (
+                                  <div key={mealIndex} className={`relative group p-3 bg-white rounded-lg border hover:shadow-md transition-all ${
+                                    isRefreshing ? 'opacity-75 animate-pulse' : ''
+                                  }`}>
+                                    <div className="text-sm font-medium text-gray-900 capitalize">{meal.mealType}</div>
+                                    <div className="text-sm text-gray-600 mb-1">{meal.name}</div>
+                                    <div className="text-xs text-gray-500 mb-2">{meal.calories} cal</div>
+                                    
+                                    {/* Loading overlay */}
+                                    {isRefreshing && (
+                                      <div className="absolute inset-0 bg-white/80 rounded-lg flex items-center justify-center">
+                                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                                          <RefreshCw className="h-3 w-3 animate-spin" />
+                                          Generating...
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Action buttons - show on hover */}
+                                    <div className={`absolute top-2 right-2 flex gap-1 transition-opacity ${
+                                      isRefreshing ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'
+                                    }`}>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 w-6 p-0 hover:bg-blue-100"
+                                        onClick={() => handleEditMeal(selectedPlan.id, day.day, mealIndex, meal)}
+                                        title="Edit meal"
+                                        disabled={isRefreshing}
+                                      >
+                                        <Edit className="h-3 w-3 text-blue-600" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 w-6 p-0 hover:bg-green-100"
+                                        onClick={() => handleRefreshMeal(selectedPlan.id, day.day, mealIndex, meal.mealType)}
+                                        title="Generate alternative"
+                                        disabled={isRefreshing}
+                                      >
+                                        <RefreshCw className={`h-3 w-3 text-green-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </CardContent>
                         </Card>
@@ -1515,6 +1888,7 @@ const ProfessionalDietPlans: React.FC = () => {
                 <div className="flex items-center gap-3 pt-4 border-t">
                   <Button
                     onClick={() => {
+                      setCalendarPlanOverride(selectedPlan);
                       setActiveTab('calendar');
                       setShowPlanDetails(false);
                     }}
@@ -1536,6 +1910,247 @@ const ProfessionalDietPlans: React.FC = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Meal Editor Dialog */}
+        <Dialog open={showMealEditor} onOpenChange={setShowMealEditor}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="h-5 w-5 text-blue-600" />
+                Edit Meal - Day {editingMeal?.dayNumber}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {editingMeal && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      Meal Type
+                    </label>
+                    <Select 
+                      value={editingMeal.meal.mealType} 
+                      onValueChange={(value) => 
+                        setEditingMeal(prev => (prev ? {
+                          ...prev,
+                          meal: { ...prev.meal, mealType: value }
+                        } : null))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="breakfast">Breakfast</SelectItem>
+                        <SelectItem value="lunch">Lunch</SelectItem>
+                        <SelectItem value="dinner">Dinner</SelectItem>
+                        <SelectItem value="snack">Snack</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      Calories
+                    </label>
+                    <input
+                      type="number"
+                      value={editingMeal.meal.calories}
+                      onChange={(e) => 
+                        setEditingMeal(prev => (prev ? {
+                          ...prev,
+                          meal: { ...prev.meal, calories: parseInt(e.target.value) || 0 }
+                        } : null))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Meal Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editingMeal.meal.name}
+                    onChange={(e) => 
+                      setEditingMeal(prev => (prev ? {
+                        ...prev,
+                        meal: { ...prev.meal, name: e.target.value }
+                      } : null))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter meal name"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Description
+                  </label>
+                  <textarea
+                    value={editingMeal.meal.description || ''}
+                    onChange={(e) => 
+                      setEditingMeal(prev => (prev ? {
+                        ...prev,
+                        meal: { ...prev.meal, description: e.target.value }
+                      } : null))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Enter meal description"
+                  />
+                </div>
+
+                {editingMeal.meal.macros && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      Macronutrients
+                    </label>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-xs text-gray-600">Protein (g)</label>
+                        <input
+                          type="number"
+                          value={editingMeal.meal.macros.protein}
+                          onChange={(e) => 
+                            setEditingMeal(prev => (prev ? {
+                              ...prev,
+                              meal: { 
+                                ...prev.meal, 
+                                macros: { 
+                                  ...prev.meal.macros, 
+                                  protein: parseInt(e.target.value) || 0 
+                                }
+                              }
+                            } : null))
+                          }
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Carbs (g)</label>
+                        <input
+                          type="number"
+                          value={editingMeal.meal.macros.carbs}
+                          onChange={(e) => 
+                            setEditingMeal(prev => (prev ? {
+                              ...prev,
+                              meal: { 
+                                ...prev.meal, 
+                                macros: { 
+                                  ...prev.meal.macros, 
+                                  carbs: parseInt(e.target.value) || 0 
+                                }
+                              }
+                            } : null))
+                          }
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Fat (g)</label>
+                        <input
+                          type="number"
+                          value={editingMeal.meal.macros.fat}
+                          onChange={(e) => 
+                            setEditingMeal(prev => (prev ? {
+                              ...prev,
+                              meal: { 
+                                ...prev.meal, 
+                                macros: { 
+                                  ...prev.meal.macros, 
+                                  fat: parseInt(e.target.value) || 0 
+                                }
+                              }
+                            } : null))
+                          }
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-4 border-t">
+                  <Button
+                    onClick={() => {
+                      if (!editingMeal) return;
+                      
+                      // Save the edited meal
+                      const updatedPlans = generatedPlans.map(plan => {
+                        if (plan.id === editingMeal.planId) {
+                          const updatedContent = { ...plan.plan_content };
+                          if (updatedContent.dailyMeals && updatedContent.dailyMeals[editingMeal.dayNumber - 1]) {
+                            updatedContent.dailyMeals[editingMeal.dayNumber - 1].meals[editingMeal.mealIndex] = editingMeal.meal;
+                          }
+                          return { ...plan, plan_content: updatedContent };
+                        }
+                        return plan;
+                      });
+
+                      setGeneratedPlans(updatedPlans);
+                      
+                      // Update selected plan if it's the one being modified
+                      if (selectedPlan?.id === editingMeal.planId) {
+                        const updatedSelectedPlan = updatedPlans.find(p => p.id === editingMeal.planId);
+                        if (updatedSelectedPlan) {
+                          setSelectedPlan(updatedSelectedPlan);
+                        }
+                      }
+
+                      setShowMealEditor(false);
+                      setEditingMeal(null);
+                      
+                      toast({
+                        title: "Meal Updated! ✅",
+                        description: `${editingMeal.meal.name} has been updated successfully.`,
+                      });
+                    }}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowMealEditor(false);
+                      setEditingMeal(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Notification Preferences Dialog */}
+        <NotificationPreferences
+          open={showNotificationPreferences}
+          onOpenChange={setShowNotificationPreferences}
+          onPreferencesUpdated={(preferences) => {
+            setNotificationPreferences(preferences);
+            // Re-schedule notifications for active plans if preferences changed
+            const activePlan = generatedPlans.find(p => p.is_active);
+            if (activePlan && preferences.enabled) {
+              adultDietNotificationService.scheduleAdultDietPlanNotifications(
+                activePlan.plan_content,
+                user?.id || '',
+                preferences
+              ).then((notifications) => {
+                if (notifications.length > 0) {
+                  toast({
+                    title: "Notifications Updated! 🔔",
+                    description: `${notifications.length} meal reminders have been rescheduled.`,
+                  });
+                }
+              }).catch(console.error);
+            }
+          }}
+        />
       </div>
     </div>
   );

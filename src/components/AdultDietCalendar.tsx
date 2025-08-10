@@ -38,7 +38,9 @@ import {
   List,
   Utensils,
   Activity,
-  Flame
+  Flame,
+  RefreshCw,
+  Eye
 } from "lucide-react";
 
 interface DietPlanMeal {
@@ -67,7 +69,12 @@ interface DietPlanMeal {
   rating?: number;
 }
 
-const AdultDietCalendar: React.FC = () => {
+interface AdultDietCalendarProps {
+  selectedPlanOverride?: any; // Specific plan to display instead of active plan
+  onClearOverride?: () => void; // Callback to clear the override
+}
+
+const AdultDietCalendar: React.FC<AdultDietCalendarProps> = ({ selectedPlanOverride, onClearOverride }) => {
   const { user } = useUser();
   const { toast } = useToast();
   const [dietPlanMeals, setDietPlanMeals] = useState<DietPlanMeal[]>([]);
@@ -97,12 +104,33 @@ const AdultDietCalendar: React.FC = () => {
   useEffect(() => {
     if (user?.id) {
       loadActiveDietPlan();
-      loadDietPlanMeals();
     }
   }, [user?.id, currentDate]);
 
+  // Load meals when active plan changes or when override plan is provided
+  useEffect(() => {
+    if (user?.id) {
+      loadDietPlanMeals();
+    }
+  }, [user?.id, activePlan, selectedPlanOverride]);
+
+  // Refresh data when component becomes visible (when switching to calendar tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user?.id) {
+        console.log('📱 Calendar became visible, refreshing data...');
+        loadActiveDietPlan();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user?.id]);
+
   const loadActiveDietPlan = async () => {
     try {
+      console.log('🔍 Loading active diet plan for user:', user?.id);
+      
       const { data, error } = await supabase
         .from('nutrition_plans')
         .select('*')
@@ -110,14 +138,22 @@ const AdultDietCalendar: React.FC = () => {
         .eq('is_active', true)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading active plan:', error);
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.log('📋 No active plan found');
+          setActivePlan(null);
+        } else {
+          console.error('❌ Error loading active plan:', error);
+          setActivePlan(null);
+        }
         return;
       }
 
+      console.log('✅ Active plan loaded:', data?.title);
       setActivePlan(data);
     } catch (error) {
-      console.error('Error loading active plan:', error);
+      console.error('❌ Error loading active plan:', error);
+      setActivePlan(null);
     }
   };
 
@@ -127,10 +163,17 @@ const AdultDietCalendar: React.FC = () => {
     try {
       setLoading(true);
       
-      // For now, we'll generate mock data since we don't have a meals table yet
-      // In a real implementation, you would query the meals table
-      const mockMeals = generateMockMeals();
-      setDietPlanMeals(mockMeals);
+      // Use override plan if provided, otherwise use active plan
+      const planToDisplay = selectedPlanOverride || activePlan;
+      
+      if (planToDisplay?.plan_content?.dailyMeals) {
+        console.log('📅 Loading plan data:', selectedPlanOverride ? 'Override plan' : 'Active plan', 'with', planToDisplay.plan_content.dailyMeals.length, 'days');
+        const realMeals = generateMealsFromPlan(planToDisplay.plan_content.dailyMeals);
+        setDietPlanMeals(realMeals);
+      } else {
+        console.log('📅 No plan found, clearing meal data');
+        setDietPlanMeals([]); // Clear meals instead of showing mock data
+      }
       
     } catch (error) {
       console.error('Error loading diet plan meals:', error);
@@ -139,9 +182,59 @@ const AdultDietCalendar: React.FC = () => {
         description: "Failed to load meal plan",
         variant: "destructive"
       });
+      setDietPlanMeals([]); // Clear meals on error too
     } finally {
       setLoading(false);
     }
+  };
+
+  // Generate meals from real plan data
+  const generateMealsFromPlan = (dailyMeals: any[]): DietPlanMeal[] => {
+    const meals: DietPlanMeal[] = [];
+    const today = new Date();
+    
+    dailyMeals.forEach((dayPlan, dayIndex) => {
+      // Calculate the date for this day (starting from today)
+      const mealDate = new Date(today);
+      mealDate.setDate(today.getDate() + dayIndex);
+      const dateStr = mealDate.toISOString().split('T')[0];
+      
+      // Add each meal for this day
+      dayPlan.meals?.forEach((meal: any, mealIndex: number) => {
+        meals.push({
+          id: `${dateStr}-${meal.mealType}-${mealIndex}`,
+          plan_id: activePlan?.id || 'plan',
+          user_id: user?.id || '',
+          scheduled_date: dateStr,
+          meal_type: meal.mealType as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+          meal_data: {
+            name: meal.name || 'Unnamed Meal',
+            calories: meal.calories || 0,
+            prep_time: meal.prep_time || '15-30 min',
+            difficulty: meal.difficulty || 'Easy',
+            ingredients: Array.isArray(meal.ingredients) 
+              ? meal.ingredients 
+              : (meal.ingredients ? [meal.ingredients] : ['Fresh ingredients']),
+            instructions: Array.isArray(meal.instructions) 
+              ? meal.instructions 
+              : (meal.instructions ? [meal.instructions] : ['Follow recipe instructions']),
+            nutrition_info: {
+              protein: meal.macros?.protein || 0,
+              carbs: meal.macros?.carbs || 0,
+              fat: meal.macros?.fat || 0,
+              fiber: meal.macros?.fiber || 0,
+              sugar: meal.macros?.sugar || 0,
+            }
+          },
+          created_at: new Date().toISOString(),
+          is_completed: false,
+          rating: undefined
+        });
+      });
+    });
+    
+    console.log('📅 Generated', meals.length, 'meals from plan data');
+    return meals;
   };
 
   // Generate mock meals for demonstration
@@ -227,7 +320,7 @@ const AdultDietCalendar: React.FC = () => {
 
   const getMealsForDate = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
-    return dietPlanMeals.filter(meal => meal.scheduled_date === dateStr);
+    return filteredMeals.filter(meal => meal.scheduled_date === dateStr);
   };
 
   const getMealTypeColor = (type: string) => {
@@ -310,16 +403,58 @@ const AdultDietCalendar: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge className="bg-blue-500 text-white">
-                <Target className="h-3 w-3 mr-1" />
-                {activePlan ? 'Active Plan' : 'No Active Plan'}
-              </Badge>
-              {activePlan && (
-                <Badge variant="outline" className="border-green-300 text-green-700">
-                  <Activity className="h-3 w-3 mr-1" />
-                  {activePlan.duration}
-                </Badge>
+              {selectedPlanOverride ? (
+                <>
+                  <Badge className="bg-purple-500 text-white">
+                    <Eye className="h-3 w-3 mr-1" />
+                    Viewing Plan
+                  </Badge>
+                  <Badge variant="outline" className="border-purple-300 text-purple-700">
+                    <Activity className="h-3 w-3 mr-1" />
+                    {selectedPlanOverride.title}
+                  </Badge>
+                  <Badge variant="outline" className="border-gray-300 text-gray-700">
+                    {selectedPlanOverride.duration}
+                  </Badge>
+                </>
+              ) : (
+                <>
+                  <Badge className="bg-blue-500 text-white">
+                    <Target className="h-3 w-3 mr-1" />
+                    {activePlan ? 'Active Plan' : 'No Active Plan'}
+                  </Badge>
+                  {activePlan && (
+                    <Badge variant="outline" className="border-green-300 text-green-700">
+                      <Activity className="h-3 w-3 mr-1" />
+                      {activePlan.duration}
+                    </Badge>
+                  )}
+                </>
               )}
+              {selectedPlanOverride && onClearOverride && (
+                <Button
+                  onClick={onClearOverride}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs px-2 py-1"
+                  title="Back to active plan view"
+                >
+                  <Target className="h-3 w-3 mr-1" />
+                  Back to Active
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  console.log('🔄 Manual refresh triggered');
+                  loadActiveDietPlan();
+                }}
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                title="Refresh calendar data"
+              >
+                <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -577,12 +712,19 @@ const AdultDietCalendar: React.FC = () => {
               <div>
                 <h4 className="font-semibold mb-2">Ingredients</h4>
                 <ul className="space-y-1">
-                  {selectedMeal.meal_data.ingredients.map((ingredient, index) => (
-                    <li key={index} className="text-sm text-gray-600 flex items-center gap-2">
+                  {Array.isArray(selectedMeal.meal_data.ingredients) ? (
+                    selectedMeal.meal_data.ingredients.map((ingredient, index) => (
+                      <li key={index} className="text-sm text-gray-600 flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                        {ingredient}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-sm text-gray-600 flex items-center gap-2">
                       <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                      {ingredient}
+                      {selectedMeal.meal_data.ingredients || 'No ingredients listed'}
                     </li>
-                  ))}
+                  )}
                 </ul>
               </div>
 
@@ -590,14 +732,23 @@ const AdultDietCalendar: React.FC = () => {
               <div>
                 <h4 className="font-semibold mb-2">Instructions</h4>
                 <ol className="space-y-2">
-                  {selectedMeal.meal_data.instructions.map((instruction, index) => (
-                    <li key={index} className="text-sm text-gray-600 flex gap-3">
+                  {Array.isArray(selectedMeal.meal_data.instructions) ? (
+                    selectedMeal.meal_data.instructions.map((instruction, index) => (
+                      <li key={index} className="text-sm text-gray-600 flex gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium">
+                          {index + 1}
+                        </span>
+                        {instruction}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-sm text-gray-600 flex gap-3">
                       <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium">
-                        {index + 1}
+                        1
                       </span>
-                      {instruction}
+                      {selectedMeal.meal_data.instructions || 'No instructions provided'}
                     </li>
-                  ))}
+                  )}
                 </ol>
               </div>
 
