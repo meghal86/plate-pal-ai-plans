@@ -256,7 +256,7 @@ const Dashboard: React.FC = () => {
 
 // Kids View Component
 const KidsView: React.FC = () => {
-  const { user, userProfile } = useUser();
+  const { user, profile: userProfile } = useUser();
   
   // Mock data - in real app, this would come from API
   const mockKids = [

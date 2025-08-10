@@ -319,7 +319,7 @@ function UserProvider({ children }: UserProviderProps) {
         try {
           const { error: saveError } = await supabase
             .from('user_profiles')
-            .insert([newProfileData]);
+            .insert([{ ...newProfileData, preferences: null as any }]);
           
           if (saveError) {
             console.log('⚠️ Could not save profile to database:', saveError);
@@ -435,7 +435,7 @@ function UserProvider({ children }: UserProviderProps) {
   };
 
   // Helper method to get specific preference values with defaults
-  const getPreference = <T>(section: keyof UserPreferences, key: string, defaultValue: T): T => {
+  const getPreference = <T,>(section: keyof UserPreferences, key: string, defaultValue: T): T => {
     if (!profile?.preferences) {
       return defaultValue;
     }
@@ -552,9 +552,15 @@ function UserProvider({ children }: UserProviderProps) {
         }
       }
 
+      const updatesToSend: any = { ...updates };
+      if ('preferences' in updatesToSend) {
+        // Preferences should be updated via updatePreferences to ensure JSON compatibility
+        delete updatesToSend.preferences;
+      }
+
       const { data, error } = await supabase
         .from('user_profiles')
-        .update(updates)
+        .update(updatesToSend)
         .eq('user_id', user.id)
         .select()
         .single();

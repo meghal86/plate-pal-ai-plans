@@ -49,20 +49,33 @@ interface SavedRecipe {
   kid_id?: string;
   scheduled_date: string;
   meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
-  recipe_data: {
-    name: string;
-    calories: number;
-    prep_time: string;
-    difficulty: string;
-    ingredients: string[];
-    instructions: string[];
-    nutrition_info: {
-      protein: number;
-      carbs: number;
-      fat: number;
-      fiber: number;
-      sugar: number;
+  recipe_data?: {
+    name?: string;
+    calories?: number;
+    prep_time?: string;
+    difficulty?: string;
+    ingredients?: string[] | string;
+    instructions?: string[] | string;
+    nutrition_info?: {
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+      fiber?: number;
+      sugar?: number;
     };
+  } | null;
+  // Fallback fields for legacy/flat data
+  recipe_name?: string;
+  calories?: number;
+  prep_time?: string;
+  difficulty?: string;
+  ingredients?: string[] | string;
+  instructions?: string[] | string;
+  nutrition?: {
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+    [key: string]: any;
   };
   created_at: string;
   is_premium?: boolean;
@@ -535,7 +548,15 @@ const PlanCalendar: React.FC<PlanCalendarProps> = ({ selectedChild }) => {
                 </div>
                 
                 <p className="text-gray-700 text-sm mb-3">
-                  {(recipe.recipe_data?.ingredients || recipe.ingredients || []).slice(0, 3).join(', ')}...
+                  {(() => {
+                    const ing = (recipe.recipe_data?.ingredients ?? recipe.ingredients ?? []);
+                    const arr = Array.isArray(ing)
+                      ? ing
+                      : typeof ing === 'string'
+                        ? (ing as string).split(',').map(s => s.trim()).filter(Boolean)
+                        : [];
+                    return arr.slice(0, 3).join(', ') + (arr.length > 3 ? '...' : '');
+                  })()}
                 </p>
               </div>
               

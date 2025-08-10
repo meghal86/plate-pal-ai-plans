@@ -37,6 +37,7 @@ const FamilyInviteAccept: React.FC = () => {
       const familyId = searchParams.get('family');
       const email = searchParams.get('email');
       const token = searchParams.get('token');
+      const role = searchParams.get('role');
 
       if (!familyId || !email || !token) {
         setError('Invalid invitation link. Please check the link and try again.');
@@ -72,7 +73,7 @@ const FamilyInviteAccept: React.FC = () => {
         token,
         familyName: family.name || 'Family',
         inviterName: inviter?.full_name || 'Someone',
-        role: 'member' // Default role
+        role: (role as string) || 'member'
       });
 
     } catch (error) {

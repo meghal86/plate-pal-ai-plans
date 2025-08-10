@@ -581,7 +581,7 @@ const FamilyInvite: React.FC = () => {
 
       // Generate invite link
       const inviteToken = crypto.randomUUID();
-      const inviteLink = `${window.location.origin}/family-invite?family=${familyId}&email=${encodeURIComponent(inviteEmail)}&token=${inviteToken}`;
+      const inviteLink = `${window.location.origin}/family-invite?family=${familyId}&email=${encodeURIComponent(inviteEmail)}&token=${inviteToken}&role=${inviteRole}`;
 
       // Get user profile for inviter name
       const { data: inviterProfile } = await supabase
