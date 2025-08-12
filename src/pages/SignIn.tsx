@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, Mail, Lock, CheckCircle, AlertCircle } from "lucide-react";
 import EmailConfirmation from "@/components/EmailConfirmation";
 import BrandIcons from "@/components/BrandIcons";
+import { authService } from "@/services/auth-service";
 
 const SignIn = () => {
   console.log("SignIn component is loading"); // Debug log
@@ -115,22 +116,20 @@ const SignIn = () => {
     setLoading(true);
     setError("");
 
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`
-        }
-      });
+    const result = await authService.signInWithOAuth(
+      provider, 
+      `${window.location.origin}/auth/callback`
+    );
 
-      if (error) {
-        setError(error.message);
-      }
-    } catch (err) {
-      setError(isHindi ? "सोशल लॉगिन में त्रुटि हुई" : "Error during social login");
-    } finally {
+    if (!result.success && result.error) {
+      setError(
+        isHindi 
+          ? `${provider} के साथ लॉगिन में त्रुटि: ${result.error.message}` 
+          : `Error signing in with ${provider}: ${result.error.message}`
+      );
       setLoading(false);
     }
+    // If successful, the OAuth flow will redirect to the callback page
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -195,12 +194,16 @@ const SignIn = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-12 bg-white hover:bg-gray-50 border-gray-300 text-gray-700 font-medium shadow-sm"
+                className="w-full h-12 bg-white hover:bg-gray-50 border-gray-300 text-gray-700 font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                 onClick={() => handleSocialLogin("google")}
                 disabled={loading}
               >
                 <div className="flex items-center justify-center gap-3">
-                  <BrandIcons provider="google" className="w-5 h-5" />
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <BrandIcons provider="google" className="w-5 h-5" />
+                  )}
                   {isHindi ? "Google के साथ जारी रखें" : "Continue with Google"}
                 </div>
               </Button>
@@ -208,12 +211,16 @@ const SignIn = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-12 bg-[#1877F2] hover:bg-[#166FE5] border-[#1877F2] text-white font-medium shadow-sm"
+                className="w-full h-12 bg-[#1877F2] hover:bg-[#166FE5] border-[#1877F2] text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                 onClick={() => handleSocialLogin("facebook")}
                 disabled={loading}
               >
                 <div className="flex items-center justify-center gap-3">
-                  <BrandIcons provider="facebook" className="w-5 h-5" />
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <BrandIcons provider="facebook" className="w-5 h-5" />
+                  )}
                   {isHindi ? "Facebook के साथ जारी रखें" : "Continue with Facebook"}
                 </div>
               </Button>
@@ -221,12 +228,16 @@ const SignIn = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-12 bg-black hover:bg-gray-800 border-black text-white font-medium shadow-sm"
+                className="w-full h-12 bg-black hover:bg-gray-800 border-black text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                 onClick={() => handleSocialLogin("twitter")}
                 disabled={loading}
               >
                 <div className="flex items-center justify-center gap-3">
-                  <BrandIcons provider="x" className="w-5 h-5" />
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <BrandIcons provider="x" className="w-5 h-5" />
+                  )}
                   {isHindi ? "X के साथ जारी रखें" : "Continue with X"}
                 </div>
               </Button>
@@ -234,12 +245,16 @@ const SignIn = () => {
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-12 bg-black hover:bg-gray-800 border-black text-white font-medium shadow-sm"
+                className="w-full h-12 bg-black hover:bg-gray-800 border-black text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                 onClick={() => handleSocialLogin("apple")}
                 disabled={loading}
               >
                 <div className="flex items-center justify-center gap-3">
-                  <BrandIcons provider="apple" className="w-5 h-5" />
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <BrandIcons provider="apple" className="w-5 h-5" />
+                  )}
                   {isHindi ? "Apple के साथ जारी रखें" : "Continue with Apple"}
                 </div>
               </Button>
