@@ -50,6 +50,9 @@ const Family = () => {
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const { toast } = useToast();
 
+  // Check if current user is admin
+  const isAdmin = currentFamily?.created_by === user?.id;
+
   useEffect(() => {
     if (user?.id) {
       loadFamilyData();
@@ -570,12 +573,14 @@ const Family = () => {
                       <Baby className="h-5 w-5 mr-2 text-pink-500" />
                       Kids Profiles
                     </span>
-                    <Link to="/profile">
-                      <Button size="sm">
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Kid
-                      </Button>
-                    </Link>
+                    {isAdmin && (
+                      <Link to="/profile">
+                        <Button size="sm">
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Kid
+                        </Button>
+                      </Link>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -596,12 +601,23 @@ const Family = () => {
                                 Allergies: {kid.allergies.join(', ')}
                               </div>
                             )}
+                            </div>
+                            {isAdmin && (
+                              <div className="flex space-x-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => {/* Navigate to edit kid */}}
+                                >
+                                  Edit
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))}
-                    
-                    {kidsProfiles.length === 0 && (
+                      ))}
+                      
+                      {kidsProfiles.length === 0 && (
                       <div className="text-center py-8 text-gray-500">
                         <Baby className="h-12 w-12 mx-auto mb-2 text-gray-300" />
                         <p>No kids profiles yet</p>

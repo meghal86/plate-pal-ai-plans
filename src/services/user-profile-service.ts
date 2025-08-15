@@ -84,7 +84,7 @@ class UserProfileService {
 
       return {
         success: true,
-        data
+        data: data as any
       };
 
     } catch (err) {
@@ -120,7 +120,7 @@ class UserProfileService {
 
       return {
         success: true,
-        data
+        data: data as any
       };
 
     } catch (err) {
@@ -163,7 +163,7 @@ class UserProfileService {
 
       return {
         success: true,
-        data
+        data: data as any
       };
 
     } catch (err) {
@@ -312,7 +312,7 @@ class UserProfileService {
 
       return {
         success: true,
-        data
+        data: data as any
       };
 
     } catch (err) {

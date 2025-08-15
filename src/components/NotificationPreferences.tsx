@@ -85,8 +85,8 @@ const NotificationPreferences: React.FC<NotificationPreferencesProps> = ({
       }
       
       const { data, error } = await supabase
-        .from('user_notification_preferences')
-        .select('preferences')
+        .from('user_profiles')
+        .select('notification_preferences')
         .eq('user_id', user.id)
         .single();
 
@@ -107,9 +107,9 @@ const NotificationPreferences: React.FC<NotificationPreferencesProps> = ({
         return;
       }
 
-      if (data?.preferences) {
-        console.log('✅ Loaded preferences:', data.preferences);
-        setPreferences({ ...adultDietNotificationService.getDefaultPreferences(), ...data.preferences });
+      if (data?.notification_preferences) {
+        console.log('✅ Loaded preferences:', data.notification_preferences);
+        setPreferences({ ...adultDietNotificationService.getDefaultPreferences(), ...(data.notification_preferences as any) });
       } else {
         console.log('ℹ️ No preferences data, using defaults');
       }
@@ -153,23 +153,21 @@ const NotificationPreferences: React.FC<NotificationPreferencesProps> = ({
       
       // First try to update existing preferences
       const { data: updateData, error: updateError } = await supabase
-        .from('user_notification_preferences')
+        .from('user_profiles')
         .update({
-          preferences: preferences,
-          updated_at: new Date().toISOString()
+          notification_preferences: preferences as any
         })
         .eq('user_id', user.id)
         .select();
 
       if (updateError && updateError.code === 'PGRST116') {
-        // No existing record, try to insert
-        console.log('📝 No existing preferences, inserting new record');
+        // No existing record, create user profile first
+        console.log('📝 No existing preferences, creating user profile');
         const { data: insertData, error: insertError } = await supabase
-          .from('user_notification_preferences')
-          .insert({
+          .from('user_profiles')
+          .upsert({
             user_id: user.id,
-            preferences: preferences,
-            updated_at: new Date().toISOString()
+            notification_preferences: preferences as any
           })
           .select();
         
@@ -212,7 +210,7 @@ const NotificationPreferences: React.FC<NotificationPreferencesProps> = ({
           errorMessage = "Network error. Please check your connection.";
         } else if (error.message.includes('JWT')) {
           errorMessage = "Session expired. Please refresh the page and try again.";
-        } else if (error.code === '23505') {
+        } else if ((error as any).code === '23505') {
           errorMessage = "Duplicate key error. Please refresh the page and try again.";
         }
       }

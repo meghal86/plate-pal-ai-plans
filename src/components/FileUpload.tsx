@@ -236,7 +236,7 @@ const FileUpload = () => {
         user_id: user.id,
         title: processedPlan.title || 'Uploaded Diet Plan',
         description: (processedPlan.description || 'Diet plan from uploaded document') + ` (Uploaded from ${selectedFile.name})`,
-        plan_content: processedPlan,
+        plan_content: processedPlan as any,
         duration: processedPlan.duration || '7 days',
         calories: processedPlan.calories || '1800-2000',
         is_active: false, // Start as inactive, user can activate later

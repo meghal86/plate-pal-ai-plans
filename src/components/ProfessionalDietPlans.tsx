@@ -614,12 +614,12 @@ const ProfessionalDietPlans: React.FC = () => {
     try {
       // Load user's notification preferences
       const { data: prefData } = await supabase
-        .from('user_notification_preferences')
-        .select('preferences')
+        .from('user_profiles')
+        .select('notification_preferences')
         .eq('user_id', user?.id)
         .single();
 
-      const preferences = prefData?.preferences || adultDietNotificationService.getDefaultPreferences();
+      const preferences = (prefData?.notification_preferences as any) || adultDietNotificationService.getDefaultPreferences();
       
       if (preferences.enabled) {
         console.log('🔔 Setting up notifications for new plan...');
@@ -735,7 +735,7 @@ const ProfessionalDietPlans: React.FC = () => {
         user_id: user.id,
         title: processedPlan.title,
         description: processedPlan.description + ` (Uploaded from ${selectedFile.name})`,
-        plan_content: processedPlan,
+        plan_content: processedPlan as any,
         duration: processedPlan.duration,
         calories: processedPlan.calories,
         is_active: false, // Start as inactive, user can activate later

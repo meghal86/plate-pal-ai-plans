@@ -388,16 +388,7 @@ class AdultDietNotificationService {
           },
           requireInteraction: false,
           silent: false,
-          actions: [
-            {
-              action: 'view',
-              title: 'View Details'
-            },
-            {
-              action: 'dismiss',
-              title: 'Dismiss'
-            }
-          ]
+          // actions disabled for browser compatibility
         });
 
         console.log(`✅ Notification sent: ${notification.title}`);
@@ -419,24 +410,9 @@ class AdultDietNotificationService {
       const allNotifications = [...existingNotifications, ...notifications];
       localStorage.setItem('adult_diet_notifications', JSON.stringify(allNotifications));
 
-      // Also store in database for persistence across devices
-      for (const notification of notifications) {
-        await supabase
-          .from('diet_notifications')
-          .upsert({
-            id: notification.id,
-            user_id: notification.user_id,
-            plan_id: notification.plan_id,
-            type: notification.type,
-            title: notification.title,
-            body: notification.body,
-            scheduled_time: notification.scheduled_time,
-            meal_data: notification.meal_data,
-            day_data: notification.day_data,
-            is_sent: notification.is_sent,
-            created_at: notification.created_at
-          });
-      }
+      // Store in database disabled - notifications stored only in localStorage for now
+      console.log('📝 Storing notifications in localStorage only (database sync disabled)');
+      // Database storage temporarily disabled due to schema sync issues
 
       console.log(`💾 Stored ${notifications.length} notifications`);
     } catch (error) {
@@ -464,10 +440,14 @@ class AdultDietNotificationService {
       localStorage.setItem('adult_diet_notifications', JSON.stringify(updated));
 
       // Update database
-      await supabase
-        .from('diet_notifications')
-        .update({ is_sent: true })
-        .eq('id', notificationId);
+      try {
+        await (supabase as any)
+          .from('diet_notifications')
+          .update({ is_sent: true })
+          .eq('id', notificationId);
+      } catch (error) {
+        console.error('Failed to update notification in database:', error);
+      }
 
       console.log(`✅ Marked notification as sent: ${notificationId}`);
     } catch (error) {
@@ -507,10 +487,14 @@ class AdultDietNotificationService {
       localStorage.setItem('adult_diet_notifications', JSON.stringify(filteredNotifications));
 
       // Remove from database
-      await supabase
-        .from('diet_notifications')
-        .delete()
-        .eq('user_id', userId);
+      try {
+        await (supabase as any)
+          .from('diet_notifications')
+          .delete()
+          .eq('user_id', userId);
+      } catch (error) {
+        console.error('Failed to delete user notifications from database:', error);
+      }
 
       console.log(`✅ Cancelled notifications for user: ${userId}`);
     } catch (error) {
@@ -550,10 +534,14 @@ class AdultDietNotificationService {
       localStorage.setItem('adult_diet_notifications', JSON.stringify(filteredNotifications));
 
       // Remove from database
-      await supabase
-        .from('diet_notifications')
-        .delete()
-        .eq('plan_id', planId);
+      try {
+        await (supabase as any)
+          .from('diet_notifications')
+          .delete()
+          .eq('plan_id', planId);
+      } catch (error) {
+        console.error('Failed to delete plan notifications from database:', error);
+      }
 
       console.log(`✅ Cancelled notifications for plan: ${planId}`);
     } catch (error) {
@@ -592,12 +580,7 @@ class AdultDietNotificationService {
       badge: '/badge-72x72.png',
       tag: 'test-notification',
       requireInteraction: false,
-      actions: [
-        {
-          action: 'view',
-          title: 'View Details'
-        }
-      ]
+      // actions disabled for browser compatibility
     });
 
     console.log('✅ Test notification sent');
