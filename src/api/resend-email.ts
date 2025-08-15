@@ -24,13 +24,7 @@ export async function sendFamilyInviteEmail(data: FamilyInviteEmailData): Promis
   try {
     console.log('📧 Sending family invite email to:', data.inviteEmail);
 
-    // TEMPORARY: For testing, only allow sending to verified email
-    const testData = {
-      ...data,
-      inviteEmail: 'meghal86@gmail.com' // Force to verified email for testing
-    };
-
-    console.log('🧪 Using test email for Resend limitations:', testData.inviteEmail);
+    console.log('📤 Sending to recipient:', data.inviteEmail);
 
     // Use your production Vercel API endpoint for email sending (v2 working version)
     const API_ENDPOINT = 'https://nourishplate.vercel.app/api/send-family-invite-v2';
@@ -42,7 +36,7 @@ export async function sendFamilyInviteEmail(data: FamilyInviteEmailData): Promis
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(testData)
+      body: JSON.stringify(data)
     });
 
     const result = await response.json();
