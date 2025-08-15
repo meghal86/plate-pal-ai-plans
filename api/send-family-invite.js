@@ -36,9 +36,7 @@ export default async function handler(request) {
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Force to verified email for testing
-    const testEmail = 'meghal86@gmail.com';
-    console.log('📧 Sending email to verified address:', testEmail);
+    console.log('📧 Sending email to:', inviteEmail);
 
     // Get API key
     const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_h3tvM9fC_C5JH12ELAP1mY5Y8P5tPqGic';
@@ -47,7 +45,7 @@ export default async function handler(request) {
     // Simple email payload
     const emailPayload = {
       from: 'onboarding@resend.dev',
-      to: [testEmail],
+      to: [inviteEmail],
       subject: `${inviterName || 'Someone'} invited you to join their family on NourishPlate`,
       html: `
         <h1>🍽️ NourishPlate Family Invitation</h1>
@@ -85,7 +83,7 @@ export default async function handler(request) {
       success: true,
       messageId: result.id,
       message: 'Email sent successfully',
-      sentTo: testEmail
+      sentTo: inviteEmail
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
