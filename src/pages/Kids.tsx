@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { useNavigate } from 'react-router-dom';
 import { useNutritionFacts } from '@/hooks/useNutritionFacts';
+import { useKidsProfiles } from '@/hooks/useKidsProfiles';
 import KidsSchoolMealPlanner from '@/components/KidsSchoolMealPlanner';
 import { 
   Baby, 
@@ -800,80 +801,31 @@ const Kids: React.FC = () => {
   const { user } = useUser();
   const { toast } = useToast();
   
+  // Use the new kids profiles hook
+  const {
+    kidsProfiles,
+    selectedKid,
+    loading,
+    error: kidsError,
+    refetch: refetchKids,
+    selectKid: setSelectedKid,
+    hasKids
+  } = useKidsProfiles();
+  
   // State management
   const [activeTab, setActiveTab] = useState('overview');
-  const [kidsProfiles, setKidsProfiles] = useState<KidsProfile[]>([]);
-  const [selectedKid, setSelectedKid] = useState<KidsProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [userFamilyId, setUserFamilyId] = useState<string | null>(null);
   const [showAddKidDialog, setShowAddKidDialog] = useState(false);
 
-  // Separate function to get user's family_id without affecting main profile
-  const getUserFamilyId = async (userId: string): Promise<string | null> => {
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('family_id')
-        .eq('user_id', userId)
-        .single();
-      
-      if (error) {
-        console.error('Error getting user family_id:', error);
-        return null;
-      }
-      
-      return data?.family_id || null;
-    } catch (error) {
-      console.error('Error getting user family_id:', error);
-      return null;
-    }
-  };
-
-  // Dedicated function to load kids profiles without affecting main profile
-  const loadKidsProfilesDedicated = async () => {
-    if (!user?.id) return;
-    
-    try {
-      setLoading(true);
-      
-      // First, get the user's family_id separately
-      const familyId = await getUserFamilyId(user.id);
-      setUserFamilyId(familyId);
-      
-      if (!familyId) {
-        setLoading(false);
-        return;
-      }
-      
-      // Then load kids profiles using the family_id
-      const { data: kids, error } = await supabase
-        .from('kids_profiles')
-        .select('*')
-        .eq('family_id', familyId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Error loading kids profiles:', error);
-      } else {
-        setKidsProfiles(kids || []);
-        // Auto-select first kid if available
-        if (kids && kids.length > 0 && !selectedKid) {
-          setSelectedKid(kids[0]);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading kids profiles:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load kids profiles on component mount
+  // Show error toast if there's an error loading kids
   useEffect(() => {
-    if (user?.id) {
-      loadKidsProfilesDedicated();
+    if (kidsError) {
+      toast({
+        title: "Error loading kids profiles",
+        description: kidsError,
+        variant: "destructive",
+      });
     }
-  }, [user?.id]);
+  }, [kidsError, toast]);
 
   // Helper to get kid's age
   const getKidAge = (birthDate: string) => {
