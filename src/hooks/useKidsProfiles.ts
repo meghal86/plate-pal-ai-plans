@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { kidsProfileService, type KidsProfile } from '@/services/kids-profile-service';
+import { EmergencyKidsService } from '@/services/emergency-kids-service';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface UseKidsProfilesResult {
@@ -23,34 +24,67 @@ export const useKidsProfiles = (): UseKidsProfilesResult => {
 
   const fetchKidsProfiles = async () => {
     try {
+      console.log('�  EMERGENCY: Starting to fetch kids profiles...');
       setLoading(true);
       setError(null);
 
+      // Try emergency service first
+      console.log('� EMdERGENCY: Using emergency kids service...');
+      const emergencyResult = await EmergencyKidsService.getKidsForUser();
+      console.log('🚨 EMERGENCY: Emergency result:', emergencyResult);
+      
+      if (emergencyResult.success && Array.isArray(emergencyResult.data)) {
+        console.log(`✅ EMERGENCY: Successfully loaded ${emergencyResult.data.length} kids profiles`);
+        setKidsProfiles(emergencyResult.data);
+        
+        // Auto-select first kid if no kid is selected and kids exist
+        if (emergencyResult.data.length > 0 && !selectedKid) {
+          setSelectedKid(emergencyResult.data[0]);
+          console.log('👶 EMERGENCY: Auto-selected first kid:', emergencyResult.data[0].name);
+        }
+        
+        // Clear selected kid if it no longer exists
+        if (selectedKid && !emergencyResult.data.find(kid => kid.id === selectedKid.id)) {
+          setSelectedKid(emergencyResult.data.length > 0 ? emergencyResult.data[0] : null);
+          console.log('🔄 EMERGENCY: Updated selected kid');
+        }
+        
+        return; // Success with emergency service
+      }
+
+      // Fallback to original service if emergency fails
+      console.log('⚠️ EMERGENCY: Emergency service failed, trying original service...');
       const result = await kidsProfileService.getKidsProfiles();
+      console.log('📊 Original service result:', result);
       
       if (result.success && Array.isArray(result.data)) {
+        console.log(`✅ Successfully loaded ${result.data.length} kids profiles via original service`);
         setKidsProfiles(result.data);
         
         // Auto-select first kid if no kid is selected and kids exist
         if (result.data.length > 0 && !selectedKid) {
           setSelectedKid(result.data[0]);
+          console.log('👶 Auto-selected first kid:', result.data[0].name);
         }
         
         // Clear selected kid if it no longer exists
         if (selectedKid && !result.data.find(kid => kid.id === selectedKid.id)) {
           setSelectedKid(result.data.length > 0 ? result.data[0] : null);
+          console.log('🔄 Updated selected kid');
         }
       } else {
-        setError(result.error || 'Failed to fetch kids profiles');
+        console.error('❌ Both services failed. Emergency error:', emergencyResult.error, 'Original error:', result.error);
+        setError(`Both services failed. Emergency: ${emergencyResult.error}, Original: ${result.error}`);
         setKidsProfiles([]);
         setSelectedKid(null);
       }
     } catch (err) {
-      console.error('Error in useKidsProfiles:', err);
+      console.error('💥 Unexpected error in useKidsProfiles:', err);
       setError('Unexpected error occurred');
       setKidsProfiles([]);
       setSelectedKid(null);
     } finally {
+      console.log('🏁 Finished fetching kids profiles, setting loading to false');
       setLoading(false);
     }
   };
@@ -144,18 +178,31 @@ export const useKidsProfiles = (): UseKidsProfilesResult => {
 
   useEffect(() => {
     let mounted = true;
+    let timeoutId: NodeJS.Timeout;
 
     const initializeKidsProfiles = async () => {
+      // Set a timeout to prevent infinite loading
+      timeoutId = setTimeout(() => {
+        if (mounted && loading) {
+          console.warn('⏰ Kids profiles loading timeout, setting loading to false');
+          setLoading(false);
+          setError('Loading timeout - please try refreshing the page');
+        }
+      }, 10000); // 10 second timeout
+
       // Check if user is authenticated
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
+        console.log('🔐 No session found, setting loading to false');
         setLoading(false);
+        clearTimeout(timeoutId);
         return;
       }
 
       if (mounted) {
         await fetchKidsProfiles();
+        clearTimeout(timeoutId);
       }
     };
 
@@ -179,6 +226,7 @@ export const useKidsProfiles = (): UseKidsProfilesResult => {
 
     return () => {
       mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);

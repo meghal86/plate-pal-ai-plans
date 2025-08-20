@@ -35,19 +35,22 @@ class KidsProfileService {
    */
   async getKidsProfiles(): Promise<KidsProfileResult> {
     try {
+      console.log('🔐 Checking user authentication...');
       // First check if user is authenticated
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
+        console.error('❌ User not authenticated:', authError);
         return {
           success: false,
           error: 'User not authenticated'
         };
       }
 
-      console.log('Fetching kids profiles for user:', user.id);
+      console.log('✅ User authenticated:', user.id);
 
-      // Get user's family_id first
+      // Try to get user's family_id first
+      console.log('📋 Fetching user profile...');
       const { data: userProfile, error: profileError } = await supabase
         .from('user_profiles')
         .select('family_id')
@@ -55,22 +58,35 @@ class KidsProfileService {
         .single();
 
       if (profileError) {
-        console.error('Error fetching user profile:', profileError);
+        console.error('❌ Error fetching user profile:', profileError);
+        
+        // If user profile doesn't exist, return empty array (not an error)
+        if (profileError.code === 'PGRST116') {
+          console.log('ℹ️ User profile not found, returning empty kids array');
+          return {
+            success: true,
+            data: []
+          };
+        }
+        
         return {
           success: false,
-          error: 'Could not fetch user profile'
+          error: `Could not fetch user profile: ${profileError.message}`
         };
       }
 
+      console.log('📋 User profile found, family_id:', userProfile?.family_id);
+
       if (!userProfile?.family_id) {
-        console.log('User has no family_id, returning empty array');
+        console.log('ℹ️ User has no family_id, returning empty array');
         return {
           success: true,
           data: []
         };
       }
 
-      // Fetch kids profiles using family_id
+      // Try to fetch kids profiles using family_id
+      console.log('👶 Fetching kids profiles for family:', userProfile.family_id);
       const { data: kidsProfiles, error: kidsError } = await supabase
         .from('kids_profiles')
         .select('*')
@@ -78,14 +94,24 @@ class KidsProfileService {
         .order('created_at', { ascending: true });
 
       if (kidsError) {
-        console.error('Error fetching kids profiles:', kidsError);
+        console.error('❌ Error fetching kids profiles:', kidsError);
+        
+        // If table doesn't exist, return empty array
+        if (kidsError.code === '42P01') {
+          console.log('⚠️ kids_profiles table does not exist, returning empty array');
+          return {
+            success: true,
+            data: []
+          };
+        }
+        
         return {
           success: false,
-          error: kidsError.message
+          error: `Could not fetch kids profiles: ${kidsError.message}`
         };
       }
 
-      console.log('Found kids profiles:', kidsProfiles?.length || 0);
+      console.log('✅ Successfully found kids profiles:', kidsProfiles?.length || 0);
 
       return {
         success: true,
@@ -93,7 +119,7 @@ class KidsProfileService {
       };
 
     } catch (err) {
-      console.error('Unexpected error fetching kids profiles:', err);
+      console.error('💥 Unexpected error fetching kids profiles:', err);
       return {
         success: false,
         error: 'Unexpected error occurred'
