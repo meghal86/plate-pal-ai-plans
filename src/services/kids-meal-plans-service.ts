@@ -14,6 +14,52 @@ export class KidsMealPlansService {
     preferences: KidsPlanPreferences,
     userId: string
   ): Promise<KidsMealPlan> {
+    try {
+      // First try using the secure function
+      const { data: planId, error: funcError } = await supabase
+        .rpc('insert_kids_meal_plan', {
+          p_kid_id: kidId,
+          p_title: plan.title,
+          p_description: plan.description,
+          p_duration: plan.daily_plans.length,
+          p_plan_data: plan as any,
+          p_preferences: preferences as any,
+          p_is_active: false
+        });
+
+      if (funcError) {
+        console.error('Error with secure function:', funcError);
+        // Fall back to direct insert
+        return await this.saveMealPlanDirect(kidId, plan, preferences, userId);
+      }
+
+      // Get the created plan
+      const { data, error } = await supabase
+        .from('kids_meal_plans')
+        .select('*')
+        .eq('id', planId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching created meal plan:', error);
+        throw new Error(`Failed to fetch created meal plan: ${error.message}`);
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Error in saveMealPlan:', err);
+      // Final fallback to direct insert
+      return await this.saveMealPlanDirect(kidId, plan, preferences, userId);
+    }
+  }
+
+  // Direct insert fallback method
+  private static async saveMealPlanDirect(
+    kidId: string,
+    plan: KidsSchoolPlan,
+    preferences: KidsPlanPreferences,
+    userId: string
+  ): Promise<KidsMealPlan> {
     const planData: KidsMealPlanInsert = {
       kid_id: kidId,
       title: plan.title,
@@ -32,7 +78,7 @@ export class KidsMealPlansService {
       .single();
 
     if (error) {
-      console.error('Error saving meal plan:', error);
+      console.error('Error saving meal plan directly:', error);
       throw new Error(`Failed to save meal plan: ${error.message}`);
     }
 
@@ -42,22 +88,17 @@ export class KidsMealPlansService {
   // Get all meal plans for a kid
   static async getMealPlansForKid(kidId: string): Promise<KidsMealPlan[]> {
     try {
-      // First, test if the table exists with a simple count query
-      const { count, error: countError } = await supabase
-        .from('kids_meal_plans')
-        .select('*', { count: 'exact', head: true });
+      // First try using the secure function
+      const { data: functionData, error: funcError } = await supabase
+        .rpc('get_kids_meal_plans', { p_kid_id: kidId });
 
-      if (countError) {
-        console.error('Table access error:', countError);
-        // If table doesn't exist or has permission issues, return empty array
-        if (countError.code === '42P01' || countError.code === 'PGRST116') {
-          console.warn('kids_meal_plans table not accessible, returning empty array');
-          return [];
-        }
-        throw new Error(`Table access error: ${countError.message}`);
+      if (!funcError && functionData) {
+        return functionData;
       }
 
-      // If table is accessible, proceed with the actual query
+      console.warn('Secure function failed, trying direct query:', funcError);
+
+      // Fall back to direct query
       const { data, error } = await supabase
         .from('kids_meal_plans')
         .select('*')
@@ -66,6 +107,11 @@ export class KidsMealPlansService {
 
       if (error) {
         console.error('Error fetching meal plans:', error);
+        // If table doesn't exist or has permission issues, return empty array
+        if (error.code === '42P01' || error.code === 'PGRST116') {
+          console.warn('kids_meal_plans table not accessible, returning empty array');
+          return [];
+        }
         throw new Error(`Failed to fetch meal plans: ${error.message}`);
       }
 
