@@ -3,22 +3,18 @@ import { supabase } from "@/integrations/supabase/client";
 export interface KidsProfile {
   id?: string;
   family_id?: string;
-  parent_user_id: string;
+  created_by?: string;
   name: string;
+  age: number;
   birth_date?: string;
-  gender?: 'male' | 'female' | 'other';
-  grade_level?: string;
-  school_name?: string;
-  dietary_restrictions?: string[];
-  allergies?: string[];
-  favorite_foods?: string[];
-  disliked_foods?: string[];
-  activity_level?: 'low' | 'moderate' | 'high';
+  gender?: string;
   height_cm?: number;
   weight_kg?: number;
-  medical_conditions?: string[];
-  notes?: string;
-  avatar_url?: string;
+  allergies?: string[];
+  dietary_restrictions?: string[];
+  favorite_foods?: string[];
+  disliked_foods?: string[];
+  preferences?: any;
   created_at?: string;
   updated_at?: string;
 }
@@ -183,23 +179,22 @@ class KidsProfileService {
         };
       }
 
-      // Use the database function to add kid profile (it handles family creation)
-      const { data, error } = await supabase.rpc('add_kid_profile', {
-        kid_name: profileData.name,
-        kid_birth_date: profileData.birth_date || null,
-        kid_gender: profileData.gender || null,
-        kid_grade_level: profileData.grade_level || null,
-        kid_school_name: profileData.school_name || null,
-        kid_dietary_restrictions: profileData.dietary_restrictions || [],
-        kid_allergies: profileData.allergies || [],
-        kid_favorite_foods: profileData.favorite_foods || [],
-        kid_disliked_foods: profileData.disliked_foods || [],
-        kid_activity_level: profileData.activity_level || 'moderate',
-        kid_height_cm: profileData.height_cm || null,
-        kid_weight_kg: profileData.weight_kg || null,
-        kid_medical_conditions: profileData.medical_conditions || [],
-        kid_notes: profileData.notes || null
-      });
+      // Get user's family ID
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('family_id')
+        .eq('user_id', user.id)
+        .single();
+
+      const { data, error } = await supabase
+        .from('kids_profiles')
+        .insert({
+          ...profileData,
+          family_id: userProfile?.family_id,
+          created_by: user.id
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('Error creating kid profile:', error);
@@ -209,10 +204,10 @@ class KidsProfileService {
         };
       }
 
-      // Fetch the created profile
-      const createdProfile = await this.getKidsProfile(data);
-      
-      return createdProfile;
+      return {
+        success: true,
+        data
+      };
 
     } catch (err) {
       console.error('Unexpected error creating kid profile:', err);
@@ -318,22 +313,43 @@ class KidsProfileService {
         };
       }
 
-      // Use the database function to get or create family
-      const { data, error } = await supabase.rpc('get_or_create_user_family', {
-        user_id: user.id
-      });
+      // First check if user has a family
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('family_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (userProfile?.family_id) {
+        return {
+          success: true,
+          familyId: userProfile.family_id
+        };
+      }
+
+      // Create a new family
+      const { data: family, error } = await supabase
+        .from('families')
+        .insert({ name: 'My Family', created_by: user.id })
+        .select()
+        .single();
 
       if (error) {
-        console.error('Error getting or creating family:', error);
         return {
           success: false,
           error: error.message
         };
       }
 
+      // Update user profile with family_id
+      await supabase
+        .from('user_profiles')
+        .update({ family_id: family.id })
+        .eq('user_id', user.id);
+
       return {
         success: true,
-        familyId: data
+        familyId: family.id
       };
 
     } catch (err) {

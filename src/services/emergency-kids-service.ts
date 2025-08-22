@@ -30,7 +30,7 @@ export class EmergencyKidsService {
         const { data: directKids, error: directError } = await supabase
           .from('kids_profiles')
           .select('*')
-          .eq('parent_user_id', user.id);
+          .eq('created_by', user.id);
 
         results.methods.direct_parent = {
           success: !directError,
@@ -45,7 +45,7 @@ export class EmergencyKidsService {
         }
       } catch (err) {
         console.error('❌ EMERGENCY: Direct parent search failed:', err);
-        results.methods.direct_parent = { success: false, error: err.message };
+        results.methods.direct_parent = { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
       }
 
       // Method 2: Search through user profile and family
