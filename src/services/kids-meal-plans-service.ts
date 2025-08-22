@@ -17,7 +17,7 @@ export class KidsMealPlansService {
     try {
       // First try using the secure function
       const { data: planId, error: funcError } = await supabase
-        .rpc('insert_kids_meal_plan', {
+        .rpc('insert_kids_meal_plan' as any, {
           p_kid_id: kidId,
           p_title: plan.title,
           p_description: plan.description,
@@ -37,7 +37,7 @@ export class KidsMealPlansService {
       const { data, error } = await supabase
         .from('kids_meal_plans')
         .select('*')
-        .eq('id', planId)
+        .eq('id', planId as string)
         .single();
 
       if (error) {
@@ -90,10 +90,10 @@ export class KidsMealPlansService {
     try {
       // First try using the secure function
       const { data: functionData, error: funcError } = await supabase
-        .rpc('get_kids_meal_plans', { p_kid_id: kidId });
+        .rpc('get_kids_meal_plans' as any, { p_kid_id: kidId });
 
       if (!funcError && functionData) {
-        return functionData;
+        return functionData as KidsMealPlan[];
       }
 
       console.warn('Secure function failed, trying direct query:', funcError);
