@@ -7,13 +7,63 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
   }
   public: {
     Tables: {
+      diet_notifications: {
+        Row: {
+          body: string
+          created_at: string | null
+          day_data: Json | null
+          id: string
+          is_sent: boolean | null
+          meal_data: Json | null
+          plan_id: string | null
+          scheduled_time: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          day_data?: Json | null
+          id: string
+          is_sent?: boolean | null
+          meal_data?: Json | null
+          plan_id?: string | null
+          scheduled_time: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          day_data?: Json | null
+          id?: string
+          is_sent?: boolean | null
+          meal_data?: Json | null
+          plan_id?: string | null
+          scheduled_time?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diet_notifications_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "nutrition_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       families: {
         Row: {
           created_at: string | null
@@ -531,6 +581,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_notification_preferences: {
+        Row: {
+          created_at: string | null
+          id: string
+          preferences: Json
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          preferences?: Json
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          preferences?: Json
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           activity_level: string | null
@@ -610,23 +684,39 @@ export type Database = {
       }
       find_similar_plans: {
         Args: {
-          plan_id: string
-          user_id: string
-          similarity_threshold?: number
           limit_count?: number
+          plan_id: string
+          similarity_threshold?: number
+          user_id: string
         }
         Returns: {
-          id: string
-          title: string
+          calories: string
           description: string
           duration: string
-          calories: string
+          id: string
           similarity: number
+          title: string
         }[]
       }
       generate_plan_embedding: {
         Args: { plan_content: Json }
         Returns: string
+      }
+      get_kids_meal_plans: {
+        Args: { p_kid_id: string }
+        Returns: {
+          created_at: string | null
+          created_by: string
+          description: string | null
+          duration: number
+          id: string
+          is_active: boolean
+          kid_id: string
+          plan_data: Json
+          preferences: Json
+          title: string
+          updated_at: string | null
+        }[]
       }
       halfvec_avg: {
         Args: { "": number[] }
@@ -660,6 +750,18 @@ export type Database = {
         Args: { "": unknown }
         Returns: unknown
       }
+      insert_kids_meal_plan: {
+        Args: {
+          p_description: string
+          p_duration: number
+          p_is_active?: boolean
+          p_kid_id: string
+          p_plan_data: Json
+          p_preferences: Json
+          p_title: string
+        }
+        Returns: string
+      }
       ivfflat_bit_support: {
         Args: { "": unknown }
         Returns: unknown
@@ -682,18 +784,18 @@ export type Database = {
       }
       search_plans_by_similarity: {
         Args: {
-          search_query: string
-          user_id: string
-          similarity_threshold?: number
           limit_count?: number
+          search_query: string
+          similarity_threshold?: number
+          user_id: string
         }
         Returns: {
-          id: string
-          title: string
+          calories: string
           description: string
           duration: string
-          calories: string
+          id: string
           similarity: number
+          title: string
         }[]
       }
       sparsevec_out: {
