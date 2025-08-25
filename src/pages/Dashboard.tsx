@@ -5,11 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/contexts/UserContext";
 import ResponsiveDashboard from "@/components/ResponsiveDashboard";
-import { Baby, User } from "lucide-react";
-
 import { 
-  Baby, 
-  User, 
   Calendar, 
   ChefHat, 
   Target, 
@@ -31,7 +27,9 @@ import {
   Activity,
   Flame,
   Users,
-  Crown
+  Crown,
+  Baby,
+  User
 } from "lucide-react";
 
 type UserPreference = 'kids' | 'adult';
