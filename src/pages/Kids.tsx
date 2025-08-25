@@ -503,19 +503,20 @@ const Kids: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="meal-planner">
-              <KidsSchoolMealPlanner kidId={selectedKid.id} kidName={selectedKid.name} />
+              <KidsSchoolMealPlanner 
+                kidId={selectedKid.id} 
+                kidName={selectedKid.name}
+                kidAge={getKidAge(selectedKid.birth_date || '')}
+                kidGender={selectedKid.gender || 'not specified'}
+              />
             </TabsContent>
 
             <TabsContent value="recipes">
-              <KidsRecipes kidAge={getKidAge(selectedKid.birth_date || '')} />
+              <KidsRecipes />
             </TabsContent>
 
             <TabsContent value="calendar">
-              <PlanCalendar 
-                userId={user?.id || ''} 
-                kidId={selectedKid.id}
-                planType="kids"
-              />
+              <PlanCalendar selectedChild={selectedKid} />
             </TabsContent>
 
             <TabsContent value="learning">

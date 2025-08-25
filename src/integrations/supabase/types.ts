@@ -682,6 +682,10 @@ export type Database = {
         Args: { "": string } | { "": unknown }
         Returns: unknown
       }
+      can_access_kid_meal_plans: {
+        Args: { p_kid_id: string; p_user_id: string }
+        Returns: boolean
+      }
       find_similar_plans: {
         Args: {
           limit_count?: number
@@ -761,6 +765,10 @@ export type Database = {
           p_title: string
         }
         Returns: string
+      }
+      is_family_member: {
+        Args: { p_family_id: string; p_user_id: string }
+        Returns: boolean
       }
       ivfflat_bit_support: {
         Args: { "": unknown }

@@ -89,7 +89,7 @@ const Kids: React.FC = () => {
         const { data: directKids, error: directError } = await supabase
           .from('kids_profiles')
           .select('*')
-          .eq('parent_user_id', user.id)
+          .eq('created_by', user.id)
           .order('created_at', { ascending: true });
 
         if (!directError && directKids && directKids.length > 0) {
@@ -307,10 +307,10 @@ const Kids: React.FC = () => {
                           <h3 className="font-semibold text-gray-900">{kid.name}</h3>
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <span>Age {getKidAge(kid.birth_date || '')}</span>
-                            {kid.grade_level && (
+                            {kid.gender && (
                               <>
                                 <span>•</span>
-                                <span>{kid.grade_level}</span>
+                                <span>{kid.gender}</span>
                               </>
                             )}
                           </div>
@@ -379,24 +379,22 @@ const Kids: React.FC = () => {
                     </div>
                     
                     <div className="space-y-3">
-                      {selectedKid.grade_level && (
+                      {selectedKid.gender && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Grade:</span>
-                          <span className="font-medium">{selectedKid.grade_level}</span>
+                          <span className="text-gray-600">Gender:</span>
+                          <span className="font-medium capitalize">{selectedKid.gender}</span>
                         </div>
                       )}
-                      {selectedKid.school_name && (
+                      {selectedKid.weight_kg && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600">School:</span>
-                          <span className="font-medium">{selectedKid.school_name}</span>
+                          <span className="text-gray-600">Weight:</span>
+                          <span className="font-medium">{selectedKid.weight_kg} kg</span>
                         </div>
                       )}
-                      {selectedKid.activity_level && (
+                      {selectedKid.height_cm && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Activity Level:</span>
-                          <Badge variant="outline" className="capitalize">
-                            {selectedKid.activity_level}
-                          </Badge>
+                          <span className="text-gray-600">Height:</span>
+                          <span className="font-medium">{selectedKid.height_cm} cm</span>
                         </div>
                       )}
                     </div>
@@ -505,19 +503,20 @@ const Kids: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="meal-planner">
-              <KidsSchoolMealPlanner kidId={selectedKid.id} kidName={selectedKid.name} />
+              <KidsSchoolMealPlanner 
+                kidId={selectedKid.id} 
+                kidName={selectedKid.name}
+                kidAge={getKidAge(selectedKid.birth_date || '')}
+                kidGender={selectedKid.gender || 'not specified'}
+              />
             </TabsContent>
 
             <TabsContent value="recipes">
-              <KidsRecipes kidAge={getKidAge(selectedKid.birth_date || '')} />
+              <KidsRecipes />
             </TabsContent>
 
             <TabsContent value="calendar">
-              <PlanCalendar 
-                userId={user?.id || ''} 
-                kidId={selectedKid.id}
-                planType="kids"
-              />
+              <PlanCalendar selectedChild={selectedKid} />
             </TabsContent>
 
             <TabsContent value="learning">

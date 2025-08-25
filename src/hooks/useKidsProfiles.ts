@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { kidsProfileService, type KidsProfile } from '@/services/kids-profile-service';
-import { EmergencyKidsService } from '@/services/emergency-kids-service';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface UseKidsProfilesResult {
@@ -24,41 +23,16 @@ export const useKidsProfiles = (): UseKidsProfilesResult => {
 
   const fetchKidsProfiles = async () => {
     try {
-      console.log('�  EMERGENCY: Starting to fetch kids profiles...');
+      console.log('🔍 useKidsProfiles: Starting to fetch kids profiles...');
       setLoading(true);
       setError(null);
 
-      // Try emergency service first
-      console.log('� EMdERGENCY: Using emergency kids service...');
-      const emergencyResult = await EmergencyKidsService.getKidsForUser();
-      console.log('🚨 EMERGENCY: Emergency result:', emergencyResult);
-      
-      if (emergencyResult.success && Array.isArray(emergencyResult.data)) {
-        console.log(`✅ EMERGENCY: Successfully loaded ${emergencyResult.data.length} kids profiles`);
-        setKidsProfiles(emergencyResult.data);
-        
-        // Auto-select first kid if no kid is selected and kids exist
-        if (emergencyResult.data.length > 0 && !selectedKid) {
-          setSelectedKid(emergencyResult.data[0]);
-          console.log('👶 EMERGENCY: Auto-selected first kid:', emergencyResult.data[0].name);
-        }
-        
-        // Clear selected kid if it no longer exists
-        if (selectedKid && !emergencyResult.data.find(kid => kid.id === selectedKid.id)) {
-          setSelectedKid(emergencyResult.data.length > 0 ? emergencyResult.data[0] : null);
-          console.log('🔄 EMERGENCY: Updated selected kid');
-        }
-        
-        return; // Success with emergency service
-      }
-
-      // Fallback to original service if emergency fails
-      console.log('⚠️ EMERGENCY: Emergency service failed, trying original service...');
+      // Use KidsProfileService directly
       const result = await kidsProfileService.getKidsProfiles();
-      console.log('📊 Original service result:', result);
+      console.log('📊 KidsProfileService result:', result);
       
       if (result.success && Array.isArray(result.data)) {
-        console.log(`✅ Successfully loaded ${result.data.length} kids profiles via original service`);
+        console.log(`✅ Successfully loaded ${result.data.length} kids profiles`);
         setKidsProfiles(result.data);
         
         // Auto-select first kid if no kid is selected and kids exist
@@ -73,8 +47,8 @@ export const useKidsProfiles = (): UseKidsProfilesResult => {
           console.log('🔄 Updated selected kid');
         }
       } else {
-        console.error('❌ Both services failed. Emergency error:', emergencyResult.error, 'Original error:', result.error);
-        setError(`Both services failed. Emergency: ${emergencyResult.error}, Original: ${result.error}`);
+        console.error('❌ Service failed. Error:', result.error);
+        setError(result.error || 'Failed to load kids profiles');
         setKidsProfiles([]);
         setSelectedKid(null);
       }
