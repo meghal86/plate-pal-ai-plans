@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,8 +55,8 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Get user name with better fallback logic
-  const getUserName = () => {
+  // Get user name with better fallback logic - memoized to prevent re-renders
+  const userName = React.useMemo(() => {
     if (profile?.full_name && profile.full_name !== "User") {
       return profile.full_name.split(' ')[0];
     }
@@ -75,37 +75,63 @@ const Dashboard: React.FC = () => {
     }
     
     return "User";
-  };
+  }, [profile?.full_name, profile?.email, userProfile?.full_name, userProfile?.email]);
 
-  const userName = getUserName();
-
-  // Load user preference on mount
+  // Load user preference on mount - fixed to prevent infinite loops
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 500);
+    let isMounted = true;
     
-    const preference = getPreference('dashboard', 'default_view', null as UserPreference | null);
-    
-    if (preference) {
-      setCurrentView(preference);
-    } else {
-      const storedPreference = localStorage.getItem('dashboard_preference') as UserPreference;
-      if (storedPreference === 'kids' || storedPreference === 'adult') {
-        setCurrentView(storedPreference);
-        if (user && userProfile) {
-          updateUserPreference(storedPreference);
+    const initializePreferences = async () => {
+      if (!isMounted) return;
+      
+      try {
+        const preference = getPreference('dashboard', 'default_view', null as UserPreference | null);
+        
+        if (preference && isMounted) {
+          setCurrentView(preference);
+        } else {
+          const storedPreference = localStorage.getItem('dashboard_preference') as UserPreference;
+          if (storedPreference === 'kids' || storedPreference === 'adult') {
+            if (isMounted) {
+              setCurrentView(storedPreference);
+            }
+            // Only sync to database if we have user data and component is still mounted
+            if (user && userProfile && isMounted) {
+              try {
+                await updatePreferences('dashboard', {
+                  default_view: storedPreference
+                });
+              } catch (error) {
+                console.error('Error syncing preference:', error);
+              }
+            }
+          } else if (isMounted) {
+            setShowPreferenceModal(true);
+          }
         }
-      } else {
-        setShowPreferenceModal(true);
+      } catch (error) {
+        console.error('Error initializing preferences:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-    }
-    
-    setLoading(false);
-    clearTimeout(timer);
+    };
 
-    return () => clearTimeout(timer);
-  }, [userProfile, user]);
+    // Set a timeout to ensure loading stops even if there are issues
+    const loadingTimer = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
+    }, 1000);
+
+    initializePreferences();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(loadingTimer);
+    };
+  }, []); // Empty dependency array to run only once on mount
 
   const updateUserPreference = async (preference: UserPreference) => {
     if (!user) return;
@@ -132,8 +158,8 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Calculate adult stats
-  const calculateAdultStats = () => {
+  // Calculate adult stats - memoized to prevent unnecessary recalculations
+  const adultStats = React.useMemo(() => {
     const userWeight = typeof profile?.weight_kg === 'number' ? profile.weight_kg : 70;
     const userHeight = typeof profile?.height_cm === 'number' ? profile.height_cm : 170;
     
@@ -170,9 +196,13 @@ const Dashboard: React.FC = () => {
       targetProtein,
       userWeight
     };
-  };
-
-  const adultStats = calculateAdultStats();
+  }, [
+    profile?.weight_kg,
+    profile?.height_cm,
+    profile?.date_of_birth,
+    profile?.activity_level,
+    profile?.gender
+  ]);
 
   if (loading) {
     return (
@@ -430,7 +460,7 @@ const Dashboard: React.FC = () => {
   );
 };
 
-// Kids View Component
+// Kids View Component - Memoized to prevent unnecessary re-renders
 interface KidsViewProps {
   kidsProfiles: any[];
   hasKids: boolean;
@@ -438,7 +468,7 @@ interface KidsViewProps {
   navigate: (path: string) => void;
 }
 
-const KidsView: React.FC<KidsViewProps> = ({
+const KidsView: React.FC<KidsViewProps> = React.memo(({
   kidsProfiles,
   hasKids,
   kidsLoading,
@@ -619,9 +649,9 @@ const KidsView: React.FC<KidsViewProps> = ({
       </Card>
     </div>
   );
-};
+});
 
-// Adult View Component
+// Adult View Component - Memoized to prevent unnecessary re-renders
 interface AdultViewProps {
   adultStats: {
     currentCalories: number;
@@ -633,7 +663,7 @@ interface AdultViewProps {
   navigate: (path: string) => void;
 }
 
-const AdultView: React.FC<AdultViewProps> = ({
+const AdultView: React.FC<AdultViewProps> = React.memo(({
   adultStats,
   navigate
 }) => {
@@ -860,6 +890,6 @@ const AdultView: React.FC<AdultViewProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default Dashboard;
