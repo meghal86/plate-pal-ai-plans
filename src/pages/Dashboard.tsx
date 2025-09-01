@@ -233,7 +233,7 @@ const Dashboard: React.FC = () => {
                   </h1>
                   <p className="text-sm text-slate-600">
                     {currentView === 'kids' 
-                      ? 'Family nutrition & meal planning' 
+                      ? 'Professional family nutrition management' 
                       : 'Personal diet & fitness goals'
                     }
                   </p>
@@ -417,9 +417,9 @@ const Dashboard: React.FC = () => {
                       <Baby className="h-5 w-5 text-orange-600" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-sm">Kids Meal Planning</h3>
+                      <h3 className="font-semibold text-sm">Family Nutrition</h3>
                       <p className="text-xs text-muted-foreground">
-                        Family nutrition & school meals
+                        Professional meal planning for children
                       </p>
                     </div>
                     {currentView === 'kids' && (
@@ -477,31 +477,31 @@ const KidsView: React.FC<KidsViewProps> = React.memo(({
   return (
     <div className="space-y-8">
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl p-8 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-12 -translate-x-12"></div>
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-8 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16"></div>
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
         <div className="relative">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div className="flex-1">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                  <ChefHat className="h-8 w-8 text-white" />
+                <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm">
+                  <Users className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold mb-2">Kids Meal Planning</h2>
-                  <p className="text-orange-100 text-lg">
-                    AI-powered nutrition planning for healthy, happy kids
+                  <h2 className="text-3xl font-bold mb-2">Family Nutrition Management</h2>
+                  <p className="text-slate-300 text-lg">
+                    Professional meal planning and nutrition tracking for children
                   </p>
                 </div>
               </div>
             </div>
             <Button 
               size="lg" 
-              className="bg-white text-orange-600 hover:bg-orange-50 font-semibold shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
+              className="bg-white text-slate-800 hover:bg-slate-100 font-semibold shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
               onClick={() => navigate('/kids')}
             >
               <Plus className="h-5 w-5 mr-2" />
-              Create Meal Plan
+              Create Nutrition Plan
             </Button>
           </div>
         </div>
@@ -509,57 +509,57 @@ const KidsView: React.FC<KidsViewProps> = React.memo(({
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+        <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-sm">
-                <Users className="h-6 w-6 text-white" />
+              <div className="p-3 bg-slate-100 rounded-xl">
+                <Users className="h-6 w-6 text-slate-700" />
               </div>
               <div>
-                <p className="text-sm text-orange-600 font-medium">Active Kids</p>
-                <p className="text-2xl font-bold text-orange-800">{kidsProfiles.length}</p>
+                <p className="text-sm text-slate-600 font-medium">Children Profiles</p>
+                <p className="text-2xl font-bold text-slate-900">{kidsProfiles.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+        <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-sm">
-                <Calendar className="h-6 w-6 text-white" />
+              <div className="p-3 bg-slate-100 rounded-xl">
+                <Calendar className="h-6 w-6 text-slate-700" />
               </div>
               <div>
-                <p className="text-sm text-green-600 font-medium">Meal Plans</p>
-                <p className="text-2xl font-bold text-green-800">{hasKids ? kidsProfiles.length * 2 : 0}</p>
+                <p className="text-sm text-slate-600 font-medium">Active Plans</p>
+                <p className="text-2xl font-bold text-slate-900">{hasKids ? kidsProfiles.length * 2 : 0}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+        <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-sm">
-                <BookOpen className="h-6 w-6 text-white" />
+              <div className="p-3 bg-slate-100 rounded-xl">
+                <BookOpen className="h-6 w-6 text-slate-700" />
               </div>
               <div>
-                <p className="text-sm text-purple-600 font-medium">Recipes</p>
-                <p className="text-2xl font-bold text-purple-800">{hasKids ? kidsProfiles.length * 8 : 0}</p>
+                <p className="text-sm text-slate-600 font-medium">Meal Options</p>
+                <p className="text-2xl font-bold text-slate-900">{hasKids ? kidsProfiles.length * 8 : 0}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl shadow-sm">
-                <Trophy className="h-6 w-6 text-white" />
+              <div className="p-3 bg-slate-100 rounded-xl">
+                <BarChart3 className="h-6 w-6 text-slate-700" />
               </div>
               <div>
-                <p className="text-sm text-blue-600 font-medium">Success Rate</p>
-                <p className="text-2xl font-bold text-blue-800">{hasKids ? '85%' : '0%'}</p>
+                <p className="text-sm text-slate-600 font-medium">Compliance Rate</p>
+                <p className="text-2xl font-bold text-slate-900">{hasKids ? '92%' : '0%'}</p>
               </div>
             </div>
           </CardContent>
@@ -567,24 +567,25 @@ const KidsView: React.FC<KidsViewProps> = React.memo(({
       </div>
 
       {/* Kids List */}
-      <Card>
+      <Card className="bg-white border-slate-200 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-orange-500" />
-                Your Kids
+              <CardTitle className="flex items-center gap-2 text-slate-900">
+                <Users className="h-5 w-5 text-slate-600" />
+                Children Profiles
               </CardTitle>
-              <CardDescription>
-                Manage meal plans and nutrition for your children
+              <CardDescription className="text-slate-600">
+                Manage nutrition plans and dietary requirements for your children
               </CardDescription>
             </div>
             <Button 
               variant="outline"
+              className="border-slate-300 text-slate-700 hover:bg-slate-50"
               onClick={() => navigate('/kids')}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add Kid
+              Add Child
             </Button>
           </div>
         </CardHeader>
@@ -592,7 +593,7 @@ const KidsView: React.FC<KidsViewProps> = React.memo(({
           {kidsLoading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse flex items-center gap-4 p-4 border rounded-lg">
+                <div key={i} className="animate-pulse flex items-center gap-4 p-4 border border-slate-200 rounded-lg">
                   <div className="w-12 h-12 bg-slate-200 rounded-full"></div>
                   <div className="space-y-2 flex-1">
                     <div className="h-4 bg-slate-200 rounded w-1/3"></div>
@@ -604,44 +605,44 @@ const KidsView: React.FC<KidsViewProps> = React.memo(({
           ) : hasKids ? (
             <div className="space-y-4">
               {kidsProfiles.map((kid) => (
-                <div key={kid.id} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-all cursor-pointer" onClick={() => navigate('/kids')}>
+                <div key={kid.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:shadow-md hover:border-slate-300 transition-all cursor-pointer" onClick={() => navigate('/kids')}>
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                    <div className="w-12 h-12 bg-slate-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-sm">
                       {kid.name[0]}
                     </div>
                     <div>
-                      <h4 className="font-semibold">{kid.name}</h4>
-                      <p className="text-sm text-muted-foreground">Age {kid.age}</p>
+                      <h4 className="font-semibold text-slate-900">{kid.name}</h4>
+                      <p className="text-sm text-slate-600">Age {kid.age} • Nutrition Plan Active</p>
                     </div>
                   </div>
                   <Button 
-                    className="bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600"
+                    className="bg-slate-800 text-white hover:bg-slate-900 shadow-sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate('/kids');
                     }}
                   >
                     <ArrowRight className="h-4 w-4 mr-2" />
-                    Plan Meals
+                    Manage Plan
                   </Button>
                 </div>
               ))}
             </div>
           ) : (
             <div className="text-center py-12">
-              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Baby className="h-8 w-8 text-orange-500" />
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="h-8 w-8 text-slate-500" />
               </div>
-              <h4 className="font-semibold mb-2">No kids added yet</h4>
-              <p className="text-muted-foreground mb-6">
-                Add your children to start creating personalized meal plans
+              <h4 className="font-semibold mb-2 text-slate-900">No children profiles yet</h4>
+              <p className="text-slate-600 mb-6">
+                Add your children's profiles to start creating personalized nutrition plans
               </p>
               <Button 
                 onClick={() => navigate('/kids')}
-                className="bg-gradient-to-r from-orange-500 to-red-500 text-white"
+                className="bg-slate-800 text-white hover:bg-slate-900"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Your First Kid
+                Add First Child
               </Button>
             </div>
           )}
