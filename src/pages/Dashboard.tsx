@@ -476,178 +476,274 @@ const KidsView: React.FC<KidsViewProps> = React.memo(({
 }) => {
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-8 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16"></div>
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
+      {/* Professional Header Section */}
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-700 rounded-xl p-8 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-black/10"></div>
         <div className="relative">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div className="flex-1">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm">
-                  <Users className="h-8 w-8 text-white" />
+                <div className="p-3 bg-white/15 rounded-lg backdrop-blur-sm border border-white/20">
+                  <Utensils className="h-7 w-7 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold mb-2">Family Nutrition Management</h2>
-                  <p className="text-slate-300 text-lg">
-                    Professional meal planning and nutrition tracking for children
+                  <h2 className="text-2xl font-bold mb-1">Specialized Meal Plans</h2>
+                  <p className="text-indigo-100 text-base font-medium">
+                    Evidence-based nutrition planning for pediatric dietary requirements
                   </p>
                 </div>
               </div>
             </div>
             <Button 
               size="lg" 
-              className="bg-white text-slate-800 hover:bg-slate-100 font-semibold shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
+              className="bg-white/10 text-white border border-white/20 hover:bg-white/20 font-medium backdrop-blur-sm transition-all"
               onClick={() => navigate('/kids')}
             >
-              <Plus className="h-5 w-5 mr-2" />
-              Create Nutrition Plan
+              <Calendar className="h-4 w-4 mr-2" />
+              Manage Plans
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* Professional Metrics Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50">
           <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-slate-100 rounded-xl">
-                <Users className="h-6 w-6 text-slate-700" />
-              </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600 font-medium">Children Profiles</p>
-                <p className="text-2xl font-bold text-slate-900">{kidsProfiles.length}</p>
+                <p className="text-sm font-medium text-slate-600 mb-1">Active Clients</p>
+                <p className="text-3xl font-bold text-slate-900">{kidsProfiles.length}</p>
+                <p className="text-xs text-slate-500 mt-1">Enrolled profiles</p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <Users className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-green-50">
           <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-slate-100 rounded-xl">
-                <Calendar className="h-6 w-6 text-slate-700" />
-              </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600 font-medium">Active Plans</p>
-                <p className="text-2xl font-bold text-slate-900">{hasKids ? kidsProfiles.length * 2 : 0}</p>
+                <p className="text-sm font-medium text-slate-600 mb-1">Meal Plans</p>
+                <p className="text-3xl font-bold text-slate-900">{hasKids ? kidsProfiles.length * 3 : 0}</p>
+                <p className="text-xs text-slate-500 mt-1">Active protocols</p>
+              </div>
+              <div className="p-3 bg-emerald-100 rounded-lg">
+                <Calendar className="h-6 w-6 text-emerald-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-violet-50">
           <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-slate-100 rounded-xl">
-                <BookOpen className="h-6 w-6 text-slate-700" />
-              </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600 font-medium">Meal Options</p>
-                <p className="text-2xl font-bold text-slate-900">{hasKids ? kidsProfiles.length * 8 : 0}</p>
+                <p className="text-sm font-medium text-slate-600 mb-1">Nutritional Goals</p>
+                <p className="text-3xl font-bold text-slate-900">{hasKids ? kidsProfiles.length * 12 : 0}</p>
+                <p className="text-xs text-slate-500 mt-1">Tracked metrics</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Target className="h-6 w-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-orange-50">
           <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-slate-100 rounded-xl">
-                <BarChart3 className="h-6 w-6 text-slate-700" />
-              </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600 font-medium">Compliance Rate</p>
-                <p className="text-2xl font-bold text-slate-900">{hasKids ? '92%' : '0%'}</p>
+                <p className="text-sm font-medium text-slate-600 mb-1">Adherence Rate</p>
+                <p className="text-3xl font-bold text-slate-900">{hasKids ? '94%' : '0%'}</p>
+                <p className="text-xs text-slate-500 mt-1">Plan compliance</p>
+              </div>
+              <div className="p-3 bg-amber-100 rounded-lg">
+                <TrendingUp className="h-6 w-6 text-amber-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Kids List */}
-      <Card className="bg-white border-slate-200 shadow-sm">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-slate-900">
-                <Users className="h-5 w-5 text-slate-600" />
-                Children Profiles
-              </CardTitle>
-              <CardDescription className="text-slate-600">
-                Manage nutrition plans and dietary requirements for your children
-              </CardDescription>
-            </div>
-            <Button 
-              variant="outline"
-              className="border-slate-300 text-slate-700 hover:bg-slate-50"
-              onClick={() => navigate('/kids')}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Child
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {kidsLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse flex items-center gap-4 p-4 border border-slate-200 rounded-lg">
-                  <div className="w-12 h-12 bg-slate-200 rounded-full"></div>
-                  <div className="space-y-2 flex-1">
-                    <div className="h-4 bg-slate-200 rounded w-1/3"></div>
-                    <div className="h-3 bg-slate-200 rounded w-1/4"></div>
-                  </div>
+      {/* Client Management Section */}
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Main Client List */}
+        <div className="lg:col-span-2">
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-3 text-slate-900">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <Shield className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    Client Portfolio
+                  </CardTitle>
+                  <CardDescription className="text-slate-600 mt-1">
+                    Specialized nutrition management for pediatric clients
+                  </CardDescription>
                 </div>
-              ))}
-            </div>
-          ) : hasKids ? (
-            <div className="space-y-4">
-              {kidsProfiles.map((kid) => (
-                <div key={kid.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:shadow-md hover:border-slate-300 transition-all cursor-pointer" onClick={() => navigate('/kids')}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-slate-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-sm">
-                      {kid.name[0]}
+                <Button 
+                  className="bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
+                  onClick={() => navigate('/kids')}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Client
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {kidsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="animate-pulse flex items-center gap-4 p-4 bg-slate-50 rounded-lg">
+                      <div className="w-14 h-14 bg-slate-200 rounded-lg"></div>
+                      <div className="space-y-2 flex-1">
+                        <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+                        <div className="h-3 bg-slate-200 rounded w-1/2"></div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-slate-900">{kid.name}</h4>
-                      <p className="text-sm text-slate-600">Age {kid.age} • Nutrition Plan Active</p>
+                  ))}
+                </div>
+              ) : hasKids ? (
+                <div className="space-y-3">
+                  {kidsProfiles.map((kid) => (
+                    <div key={kid.id} className="group flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200" onClick={() => navigate('/kids')}>
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                          {kid.name[0]}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors">{kid.name}</h4>
+                          <div className="flex items-center gap-4 text-sm text-slate-600">
+                            <span>Age {kid.age}</span>
+                            <span className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              Active Plan
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button 
+                        size="sm"
+                        variant="ghost"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('/kids');
+                        }}
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Manage
+                      </Button>
                     </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <div className="w-20 h-20 bg-indigo-100 rounded-xl flex items-center justify-center mx-auto mb-6">
+                    <Shield className="h-10 w-10 text-indigo-600" />
                   </div>
+                  <h4 className="font-semibold mb-3 text-slate-900 text-lg">No Active Clients</h4>
+                  <p className="text-slate-600 mb-8 max-w-sm mx-auto">
+                    Begin by adding client profiles to create specialized nutrition plans and track dietary progress
+                  </p>
                   <Button 
-                    className="bg-slate-800 text-white hover:bg-slate-900 shadow-sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate('/kids');
-                    }}
+                    onClick={() => navigate('/kids')}
+                    className="bg-indigo-600 text-white hover:bg-indigo-700"
                   >
-                    <ArrowRight className="h-4 w-4 mr-2" />
-                    Manage Plan
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add First Client
                   </Button>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="h-8 w-8 text-slate-500" />
-              </div>
-              <h4 className="font-semibold mb-2 text-slate-900">No children profiles yet</h4>
-              <p className="text-slate-600 mb-6">
-                Add your children's profiles to start creating personalized nutrition plans
-              </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Actions Sidebar */}
+        <div className="space-y-6">
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-lg text-slate-900">Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <Button 
+                variant="outline" 
+                className="w-full justify-start text-left h-auto p-4 border-slate-200 hover:bg-slate-50"
                 onClick={() => navigate('/kids')}
-                className="bg-slate-800 text-white hover:bg-slate-900"
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Add First Child
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Calendar className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-slate-900">Weekly Planning</div>
+                    <div className="text-xs text-slate-600">Create meal schedules</div>
+                  </div>
+                </div>
               </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              
+              <Button 
+                variant="outline" 
+                className="w-full justify-start text-left h-auto p-4 border-slate-200 hover:bg-slate-50"
+                onClick={() => navigate('/kids')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <BarChart3 className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-slate-900">Progress Reports</div>
+                    <div className="text-xs text-slate-600">View client analytics</div>
+                  </div>
+                </div>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="w-full justify-start text-left h-auto p-4 border-slate-200 hover:bg-slate-50"
+                onClick={() => navigate('/kids')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <BookOpen className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-slate-900">Recipe Library</div>
+                    <div className="text-xs text-slate-600">Browse meal options</div>
+                  </div>
+                </div>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 to-purple-50">
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <Sparkles className="h-6 w-6 text-indigo-600" />
+                </div>
+                <h4 className="font-semibold text-slate-900 mb-2">AI Recommendations</h4>
+                <p className="text-sm text-slate-600 mb-4">
+                  Get personalized meal suggestions based on client preferences and nutritional needs
+                </p>
+                <Button 
+                  size="sm" 
+                  className="bg-indigo-600 text-white hover:bg-indigo-700"
+                  onClick={() => navigate('/kids')}
+                >
+                  View Suggestions
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 });
