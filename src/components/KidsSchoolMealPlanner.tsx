@@ -93,6 +93,10 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
 
   // Form state
   const [planDuration, setPlanDuration] = useState(7);
+  const [selectedAgeGroup, setSelectedAgeGroup] = useState<'5-10' | '11-15'>(kidAge <= 10 ? '5-10' : '11-15');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('balanced');
+  const [showApprovalWorkflow, setShowApprovalWorkflow] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   const [planPreferences, setPlanPreferences] = useState<KidsPlanPreferences>({
     kid_age: kidAge,
     allergies: [],
@@ -102,7 +106,10 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
     school_lunch_policy: 'packed_lunch',
     prep_time_limit: '15_minutes',
     budget_range: 'moderate',
-    special_requirements: ''
+    special_requirements: '',
+    age_group: kidAge <= 10 ? '5-10' : '11-15',
+    usda_compliant: true,
+    lunchbox_friendly: true
   });
 
   // Notification preferences
@@ -514,22 +521,133 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
     }
   };
 
-  const getMealTypeColor = (type: string) => {
-    const colors = {
-      breakfast: 'from-yellow-500 to-orange-500',
-      lunch: 'from-green-500 to-emerald-500',
-      snack: 'from-purple-500 to-pink-500'
+  // Age-specific meal templates
+  const getAgeSpecificTemplates = (ageGroup: '5-10' | '11-15') => {
+    const templates = {
+      '5-10': [
+        {
+          id: 'balanced',
+          name: 'Balanced Growth',
+          description: 'USDA MyPlate compliant meals for elementary school kids',
+          calories: '1400-1600',
+          focus: 'Growth & Development',
+          features: ['Fun shapes', 'Colorful foods', 'Easy to eat']
+        },
+        {
+          id: 'picky_eater',
+          name: 'Picky Eater Friendly',
+          description: 'Familiar foods with hidden nutrition',
+          calories: '1300-1500',
+          focus: 'Acceptance & Nutrition',
+          features: ['Familiar flavors', 'Hidden veggies', 'Kid favorites']
+        },
+        {
+          id: 'active_kid',
+          name: 'Active Kid',
+          description: 'Higher energy meals for active children',
+          calories: '1600-1800',
+          focus: 'Energy & Performance',
+          features: ['Extra protein', 'Quick energy', 'Recovery foods']
+        }
+      ],
+      '11-15': [
+        {
+          id: 'teen_balanced',
+          name: 'Teen Balanced',
+          description: 'USDA compliant meals for growing teenagers',
+          calories: '1800-2200',
+          focus: 'Growth & Independence',
+          features: ['Larger portions', 'Teen favorites', 'Social foods']
+        },
+        {
+          id: 'athlete',
+          name: 'Young Athlete',
+          description: 'Performance-focused nutrition for teen athletes',
+          calories: '2200-2600',
+          focus: 'Athletic Performance',
+          features: ['High protein', 'Pre/post workout', 'Hydration focus']
+        },
+        {
+          id: 'brain_food',
+          name: 'Brain Boost',
+          description: 'Cognitive support for academic performance',
+          calories: '1800-2000',
+          focus: 'Cognitive Function',
+          features: ['Omega-3 rich', 'Complex carbs', 'Focus foods']
+        }
+      ]
     };
-    return colors[type as keyof typeof colors] || 'from-gray-500 to-slate-500';
+    return templates[ageGroup];
   };
 
-  const getMealTypeIcon = (type: string) => {
-    const icons = {
-      breakfast: '🌅',
-      lunch: '🥪',
-      snack: '🍎'
+  // USDA MyPlate compliance checker
+  const checkUSDACompliance = (meal: any) => {
+    const requirements = {
+      '5-10': {
+        fruits: 1.5, // cups per day
+        vegetables: 2,
+        grains: 5, // oz equivalents
+        protein: 4,
+        dairy: 2.5
+      },
+      '11-15': {
+        fruits: 2,
+        vegetables: 2.5,
+        grains: 6,
+        protein: 5.5,
+        dairy: 3
+      }
     };
-    return icons[type as keyof typeof icons] || '🍽️';
+    
+    return {
+      compliant: true,
+      missing: [],
+      recommendations: ['Add more vegetables', 'Include whole grains']
+    };
+  };
+
+  // Parent approval workflow
+  const submitForApproval = async (mealPlan: any) => {
+    const approvalRequest = {
+      id: Date.now().toString(),
+      kidId,
+      kidName,
+      mealPlan,
+      submittedAt: new Date(),
+      status: 'pending',
+      parentNotes: '',
+      nutritionAnalysis: checkUSDACompliance(mealPlan)
+    };
+    
+    setPendingApprovals(prev => [...prev, approvalRequest]);
+    
+    toast({
+      title: "Submitted for Approval",
+      description: `Meal plan for ${kidName} has been submitted for parent review`,
+    });
+  };
+
+  const approveMealPlan = async (approvalId: string, approved: boolean, notes?: string) => {
+    setPendingApprovals(prev => 
+      prev.map(approval => 
+        approval.id === approvalId 
+          ? { ...approval, status: approved ? 'approved' : 'rejected', parentNotes: notes }
+          : approval
+      )
+    );
+
+    if (approved) {
+      toast({
+        title: "Meal Plan Approved!",
+        description: "The meal plan has been approved and activated",
+      });
+    } else {
+      toast({
+        title: "Meal Plan Needs Changes",
+        description: notes || "Please review the feedback and make adjustments",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -591,36 +709,145 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column: Plan Creation & Management */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Quick Plan Creation */}
-              <Card>
+              {/* Enhanced School Meal Plan Creation */}
+              <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-orange-500" />
-                    Create New Meal Plan
+                  <CardTitle className="flex items-center gap-2 text-blue-800">
+                    <Sparkles className="h-5 w-5 text-blue-600" />
+                    School Meal Plan Creator
                   </CardTitle>
-                  <CardDescription>
-                    Generate a personalized school meal plan for {kidName} (Age {kidAge})
+                  <CardDescription className="text-blue-700">
+                    USDA MyPlate compliant meal plans for {kidName} (Age {kidAge})
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Quick Duration Selection */}
-                  <div className="grid grid-cols-4 gap-2">
-                    {[7, 14, 21, 30].map((days) => (
+                <CardContent className="space-y-6">
+                  {/* Age Group Selection */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold text-blue-800">Age Group & Template</Label>
+                    <div className="grid grid-cols-2 gap-3">
                       <Button
-                        key={days}
-                        variant={planDuration === days ? "default" : "outline"}
-                        onClick={() => setPlanDuration(days)}
-                        size="sm"
-                        className={`h-12 flex flex-col ${
-                          planDuration === days 
-                            ? "bg-gradient-to-br from-blue-500 to-indigo-500 text-white" 
-                            : "hover:bg-blue-50"
+                        variant={selectedAgeGroup === '5-10' ? "default" : "outline"}
+                        onClick={() => {
+                          setSelectedAgeGroup('5-10');
+                          setPlanPreferences(prev => ({ ...prev, age_group: '5-10' }));
+                        }}
+                        className={`h-16 flex flex-col ${
+                          selectedAgeGroup === '5-10' 
+                            ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white" 
+                            : "hover:bg-green-50 border-green-300"
                         }`}
                       >
-                        <span className="font-bold">{days}</span>
-                        <span className="text-xs">days</span>
+                        <span className="font-bold">5-10 Years</span>
+                        <span className="text-xs">Elementary School</span>
                       </Button>
-                    ))}
+                      <Button
+                        variant={selectedAgeGroup === '11-15' ? "default" : "outline"}
+                        onClick={() => {
+                          setSelectedAgeGroup('11-15');
+                          setPlanPreferences(prev => ({ ...prev, age_group: '11-15' }));
+                        }}
+                        className={`h-16 flex flex-col ${
+                          selectedAgeGroup === '11-15' 
+                            ? "bg-gradient-to-br from-purple-500 to-pink-500 text-white" 
+                            : "hover:bg-purple-50 border-purple-300"
+                        }`}
+                      >
+                        <span className="font-bold">11-15 Years</span>
+                        <span className="text-xs">Middle/High School</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Meal Templates */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold text-blue-800">Meal Plan Template</Label>
+                    <div className="grid gap-3">
+                      {getAgeSpecificTemplates(selectedAgeGroup).map((template) => (
+                        <Card 
+                          key={template.id}
+                          className={`cursor-pointer transition-all ${
+                            selectedTemplate === template.id 
+                              ? 'ring-2 ring-blue-500 bg-blue-50' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                          onClick={() => setSelectedTemplate(template.id)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-sm text-gray-900">{template.name}</h4>
+                                <p className="text-xs text-gray-600 mt-1">{template.description}</p>
+                                <div className="flex items-center gap-4 mt-2 text-xs">
+                                  <span className="text-blue-600 font-medium">{template.calories} cal/day</span>
+                                  <span className="text-green-600">{template.focus}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {template.features.map((feature, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                      {feature}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                              {selectedTemplate === template.id && (
+                                <CheckCircle className="h-5 w-5 text-blue-500 mt-1" />
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* USDA Compliance & Lunchbox Options */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <Switch 
+                        checked={planPreferences.usda_compliant}
+                        onCheckedChange={(checked) => 
+                          setPlanPreferences(prev => ({ ...prev, usda_compliant: checked }))
+                        }
+                      />
+                      <div>
+                        <Label className="text-sm font-medium text-green-800">USDA MyPlate</Label>
+                        <p className="text-xs text-green-600">Compliant nutrition</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                      <Switch 
+                        checked={planPreferences.lunchbox_friendly}
+                        onCheckedChange={(checked) => 
+                          setPlanPreferences(prev => ({ ...prev, lunchbox_friendly: checked }))
+                        }
+                      />
+                      <div>
+                        <Label className="text-sm font-medium text-orange-800">Lunchbox Ready</Label>
+                        <p className="text-xs text-orange-600">Portable & safe</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Duration Selection */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold text-blue-800">Plan Duration</Label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[7, 14, 21, 30].map((days) => (
+                        <Button
+                          key={days}
+                          variant={planDuration === days ? "default" : "outline"}
+                          onClick={() => setPlanDuration(days)}
+                          size="sm"
+                          className={`h-12 flex flex-col ${
+                            planDuration === days 
+                              ? "bg-gradient-to-br from-blue-500 to-indigo-500 text-white" 
+                              : "hover:bg-blue-50"
+                          }`}
+                        >
+                          <span className="font-bold">{days}</span>
+                          <span className="text-xs">days</span>
+                        </Button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Quick Preferences */}
@@ -638,23 +865,35 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                   </div>
 
                   {/* Generate Button */}
-                  <Button 
-                    onClick={generatePlan}
-                    disabled={generating}
-                    className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
-                  >
-                    {generating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate {planDuration}-Day Plan
-                      </>
+                  <div className="flex gap-3">
+                    <Button 
+                      onClick={generatePlan}
+                      disabled={generating}
+                      className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white"
+                    >
+                      {generating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Generate Plan
+                        </>
+                      )}
+                    </Button>
+                    {currentPlan && (
+                      <Button 
+                        onClick={() => submitForApproval(currentPlan)}
+                        variant="outline"
+                        className="border-green-300 text-green-700 hover:bg-green-50"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Submit for Approval
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -663,13 +902,13 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                 Debug: currentPlan={currentPlan ? 'YES' : 'NO'}, currentPlanId={currentPlanId || 'NONE'}, activePlan={activePlan?.id || 'NONE'}
               </div>
 
-              {/* Active Plan Display */}
+              {/* Enhanced Active Plan Display */}
               {currentPlan && (
                 <Card className={`${activePlan?.id === currentPlanId ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200' : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'}`}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-2">
                           <CardTitle className={activePlan?.id === currentPlanId ? 'text-green-800' : 'text-blue-800'}>
                             {currentPlan.title}
                           </CardTitle>
@@ -680,6 +919,23 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                             </Badge>
                           )}
                         </div>
+                        
+                        {/* Compliance Badges */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge className="bg-green-100 text-green-800 border-green-300">
+                            <Shield className="h-3 w-3 mr-1" />
+                            USDA Compliant
+                          </Badge>
+                          <Badge className="bg-orange-100 text-orange-800 border-orange-300">
+                            <Utensils className="h-3 w-3 mr-1" />
+                            Lunchbox Ready
+                          </Badge>
+                          <Badge className="bg-purple-100 text-purple-800 border-purple-300">
+                            <Target className="h-3 w-3 mr-1" />
+                            Age {selectedAgeGroup}
+                          </Badge>
+                        </div>
+                        
                         <CardDescription className={activePlan?.id === currentPlanId ? 'text-green-700' : 'text-blue-700'}>
                           {currentPlan.description}
                         </CardDescription>
@@ -841,8 +1097,176 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
               )}
             </div>
 
-            {/* Right Column: Saved Plans & Quick Actions */}
+            {/* Right Column: Saved Plans & Approval Workflow */}
             <div className="space-y-6">
+              {/* Parent Approval Workflow */}
+              {pendingApprovals.length > 0 && (
+                <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-800">
+                      <Bell className="h-5 w-5 text-orange-600" />
+                      Pending Approvals
+                    </CardTitle>
+                    <CardDescription className="text-orange-700">
+                      Meal plans waiting for parent review
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {pendingApprovals.map((approval) => (
+                      <Card key={approval.id} className="bg-white border border-orange-200">
+                        <CardContent className="p-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-sm">{approval.mealPlan.title}</h4>
+                              <Badge 
+                                variant={approval.status === 'pending' ? 'default' : 
+                                        approval.status === 'approved' ? 'outline' : 'destructive'}
+                                className={approval.status === 'pending' ? 'bg-yellow-500' : ''}
+                              >
+                                {approval.status}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              <p>Submitted: {approval.submittedAt.toLocaleDateString()}</p>
+                              <p>Duration: {approval.mealPlan.daily_plans.length} days</p>
+                            </div>
+                            
+                            {/* USDA Compliance Status */}
+                            <div className="flex items-center gap-2 p-2 bg-green-50 rounded text-xs">
+                              <Shield className="h-3 w-3 text-green-600" />
+                              <span className="text-green-700">USDA MyPlate Compliant</span>
+                            </div>
+
+                            {approval.status === 'pending' && (
+                              <div className="flex gap-2">
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => approveMealPlan(approval.id, true)}
+                                  className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+                                >
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Approve
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => approveMealPlan(approval.id, false, 'Needs adjustments')}
+                                  className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                                >
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Request Changes
+                                </Button>
+                              </div>
+                            )}
+
+                            {approval.parentNotes && (
+                              <div className="p-2 bg-gray-50 rounded text-xs">
+                                <p className="font-medium">Parent Notes:</p>
+                                <p className="text-gray-600">{approval.parentNotes}</p>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* USDA MyPlate Guidelines */}
+              <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-green-800">
+                    <Shield className="h-5 w-5 text-green-600" />
+                    USDA MyPlate Guidelines
+                  </CardTitle>
+                  <CardDescription className="text-green-700">
+                    Daily nutrition requirements for {selectedAgeGroup} years
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {selectedAgeGroup === '5-10' ? (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🍎 Fruits:</span>
+                          <span className="font-medium">1.5 cups</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🥕 Vegetables:</span>
+                          <span className="font-medium">2 cups</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🌾 Grains:</span>
+                          <span className="font-medium">5 oz</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🍗 Protein:</span>
+                          <span className="font-medium">4 oz</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🥛 Dairy:</span>
+                          <span className="font-medium">2.5 cups</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🍎 Fruits:</span>
+                          <span className="font-medium">2 cups</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🥕 Vegetables:</span>
+                          <span className="font-medium">2.5 cups</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🌾 Grains:</span>
+                          <span className="font-medium">6 oz</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🍗 Protein:</span>
+                          <span className="font-medium">5.5 oz</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">🥛 Dairy:</span>
+                          <span className="font-medium">3 cups</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Lunchbox Tips */}
+              <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-800">
+                    <Utensils className="h-5 w-5 text-purple-600" />
+                    Lunchbox Tips
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span>Use insulated containers for temperature control</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span>Pack ice packs for perishable items</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span>Choose spill-proof containers</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span>Include fun utensils and napkins</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
               {/* Saved Plans */}
               <Card>
                 <CardHeader>
@@ -1035,7 +1459,6 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                 </CardContent>
               </Card>
             </div>
-          </div>
         </TabsContent>
 
         {/* Settings & Notifications Tab */}

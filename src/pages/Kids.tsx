@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import KidsSchoolMealPlanner from '@/components/KidsSchoolMealPlanner';
 import PlanCalendar from '@/components/PlanCalendar';
 import Layout from '@/components/Layout';
@@ -12,17 +11,15 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Baby, 
-  ChefHat, 
-  Heart, 
-  Calendar, 
-  Trophy, 
-  CheckCircle, 
-  Clock, 
-  Star,
+  ChefHat,
+  Calendar,
   Plus,
   RefreshCw,
-  Loader2
+  Loader2,
+  Settings,
+  Crown,
+  Sparkles,
+  Users
 } from 'lucide-react';
 
 type KidsProfile = Database['public']['Tables']['kids_profiles']['Row'];
@@ -30,13 +27,11 @@ type KidsProfile = Database['public']['Tables']['kids_profiles']['Row'];
 const Kids: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
-  const { toast } = useToast();
   
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeView, setActiveView] = useState<'meal-planner' | 'calendar'>('meal-planner');
   const [kidsProfiles, setKidsProfiles] = useState<KidsProfile[]>([]);
   const [selectedKid, setSelectedKid] = useState<KidsProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userFamilyId, setUserFamilyId] = useState<string | null>(null);
 
   const loadKidsProfiles = async () => {
     if (!user?.id) {
@@ -66,8 +61,6 @@ const Kids: React.FC = () => {
           .single();
 
         if (!profileError && userProfile?.family_id) {
-          setUserFamilyId(userProfile.family_id);
-          
           const { data: familyKids, error: familyError } = await supabase
             .from('kids_profiles')
             .select('*')
@@ -122,249 +115,164 @@ const Kids: React.FC = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-4xl">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-primary/10 rounded-xl">
-              <Baby className="h-6 w-6 text-primary" />
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Streamlined Header */}
+        <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200 border rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl">
+                <ChefHat className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-orange-800">Kids Zone - School Meal Plans</h1>
+                <p className="text-orange-700">AI-powered meal planning for school days</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Kids Zone</h1>
-              <p className="text-sm text-muted-foreground">Healthy nutrition made simple</p>
+            <div className="flex items-center gap-3">
+              <Badge className="bg-orange-200 text-orange-800">
+                <Crown className="h-3 w-3 mr-1" />
+                Premium Feature
+              </Badge>
+              <Button 
+                onClick={handleAddKid} 
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Kid
+              </Button>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              onClick={loadKidsProfiles}
-              variant="outline"
-              size="sm"
-              disabled={loading}
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button onClick={handleAddKid} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Child
-            </Button>
           </div>
         </div>
 
-        {/* Kids Selection */}
+        {/* Loading State */}
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading...</p>
+          <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+              <p className="text-slate-600 font-medium">Loading kids profiles...</p>
             </div>
           </div>
         ) : kidsProfiles.length === 0 ? (
-          <Card className="mb-6">
-            <CardContent className="text-center py-8">
-              <div className="p-4 bg-muted rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <Baby className="h-8 w-8 text-muted-foreground" />
+          /* No Kids State */
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-yellow-50">
+            <CardContent className="text-center py-16">
+              <div className="p-4 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl w-20 h-20 mx-auto mb-6 flex items-center justify-center shadow-lg">
+                <ChefHat className="h-10 w-10 text-white" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">No Children Added</h3>
-              <p className="text-muted-foreground mb-4 text-sm">
-                Add your children to create personalized nutrition plans.
+              <h3 className="text-2xl font-bold mb-3 text-slate-900">Start Your Kids' Meal Planning Journey!</h3>
+              <p className="text-slate-600 mb-8 text-base max-w-md mx-auto">
+                Add your kids to create personalized, school-friendly meal plans with USDA compliance and smart notifications.
               </p>
-              <Button onClick={handleAddKid}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Child
+              <Button 
+                onClick={handleAddKid}
+                className="bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 px-8 py-3 shadow-lg"
+                size="lg"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Add Your First Kid
               </Button>
             </CardContent>
           </Card>
         ) : (
-          <>
-            {kidsProfiles.length > 1 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                {kidsProfiles.map((kid) => (
-                  <Card 
-                    key={kid.id}
-                    className={`cursor-pointer transition-all duration-200 ${
-                      selectedKid?.id === kid.id 
-                        ? 'ring-2 ring-primary bg-primary/5' 
-                        : 'hover:bg-muted/30'
-                    }`}
-                    onClick={() => setSelectedKid(kid)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback className={`font-medium text-sm ${selectedKid?.id === kid.id ? 'bg-primary/20 text-primary' : 'bg-muted'}`}>
-                            {getKidInitials(kid.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-foreground truncate">{kid.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Age {getKidAge(kid.birth_date || '')}
-                          </p>
-                        </div>
-                        {selectedKid?.id === kid.id && (
-                          <CheckCircle className="h-5 w-5 text-primary shrink-0" />
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+          /* Main Content */
+          <div className="space-y-6">
+            {/* Kid Selection & View Toggle */}
+            <div className="flex items-center justify-between gap-4 bg-white rounded-lg border p-4 shadow-sm">
+              <div className="flex items-center gap-4">
+                {kidsProfiles.length > 1 && (
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-slate-700">Select Kid:</label>
+                    <Select
+                      value={selectedKid?.id || ''}
+                      onValueChange={(value) => {
+                        const selected = kidsProfiles.find(kid => kid.id === value);
+                        if (selected) setSelectedKid(selected);
+                      }}
+                    >
+                      <SelectTrigger className="w-48">
+                        <SelectValue placeholder="Choose a kid" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {kidsProfiles.map((kid) => (
+                          <SelectItem key={kid.id} value={kid.id}>
+                            {kid.name} (Age {getKidAge(kid.birth_date || '')})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {selectedKid && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      {selectedKid.name}
+                    </Badge>
+                    <Badge variant="outline" className="text-slate-600">
+                      Age {getKidAge(selectedKid.birth_date || '')}
+                    </Badge>
+                  </div>
+                )}
               </div>
-            )}
-          </>
-        )}
-
-        {/* Main Content */}
-        {selectedKid && (
-          <div className="space-y-4">
-            {/* Profile Summary */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarFallback className="font-medium bg-primary/10 text-primary">
-                      {getKidInitials(selectedKid.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-foreground">{selectedKid.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Age {getKidAge(selectedKid.birth_date || '')} • {selectedKid.gender || 'No gender set'}
-                    </p>
-                  </div>
-                  <div className="text-right text-sm">
-                    <p className="font-medium text-primary">85% Health Score</p>
-                    <p className="text-muted-foreground">7/10 Goals</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-3">
-              <Button 
-                onClick={() => setActiveTab('meal-planner')}
-                className="h-auto p-4 flex flex-col items-center gap-2"
-                variant="outline"
-              >
-                <ChefHat className="h-6 w-6" />
-                <span className="text-sm font-medium">Meal Plans</span>
-              </Button>
               
-              <Button 
-                onClick={() => setActiveTab('calendar')}
-                className="h-auto p-4 flex flex-col items-center gap-2"
-                variant="outline"
-              >
-                <Calendar className="h-6 w-6" />
-                <span className="text-sm font-medium">Calendar</span>
-              </Button>
+              {selectedKid && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={activeView === 'meal-planner' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setActiveView('meal-planner')}
+                    className={activeView === 'meal-planner' ? 'bg-orange-500 hover:bg-orange-600' : ''}
+                  >
+                    <ChefHat className="h-4 w-4 mr-2" />
+                    Meal Planner
+                  </Button>
+                  <Button
+                    variant={activeView === 'calendar' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setActiveView('calendar')}
+                    className={activeView === 'calendar' ? 'bg-orange-500 hover:bg-orange-600' : ''}
+                  >
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Calendar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/profile')}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </Button>
+                </div>
+              )}
             </div>
 
-            {/* Content Based on Active Tab */}
-            {activeTab === 'meal-planner' && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">Meal Plans</CardTitle>
-                    <Button size="sm" variant="ghost" onClick={() => setActiveTab('overview')}>
-                      ← Back
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
+            {/* Main Content Area */}
+            {selectedKid && (
+              <>
+                {activeView === 'meal-planner' && (
                   <KidsSchoolMealPlanner 
                     kidId={selectedKid.id}
                     kidName={selectedKid.name}
                     kidAge={getKidAge(selectedKid.birth_date || '')}
                     kidGender={selectedKid.gender || ''}
                   />
-                </CardContent>
-              </Card>
-            )}
+                )}
 
-            {activeTab === 'calendar' && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">Calendar</CardTitle>
-                    <Button size="sm" variant="ghost" onClick={() => setActiveTab('overview')}>
-                      ← Back
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <PlanCalendar 
-                    selectedChild={selectedKid}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {activeTab === 'overview' && (
-              <>
-                {/* Today's Meals */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <ChefHat className="h-5 w-5 text-primary" />
-                      Today's Meals
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
-                        <div>
-                          <p className="font-medium text-sm">Breakfast</p>
-                          <p className="text-xs text-muted-foreground">Oatmeal with berries</p>
-                        </div>
-                        <CheckCircle className="h-5 w-5 text-primary" />
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                        <div>
-                          <p className="font-medium text-sm">Lunch</p>
-                          <p className="text-xs text-muted-foreground">Turkey sandwich</p>
-                        </div>
-                        <Clock className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                        <div>
-                          <p className="font-medium text-sm">Dinner</p>
-                          <p className="text-xs text-muted-foreground">Grilled chicken & veggies</p>
-                        </div>
-                        <Clock className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Quick Stats */}
-                <div className="grid grid-cols-3 gap-3">
-                  <Card>
-                    <CardContent className="p-3 text-center">
-                      <Trophy className="h-5 w-5 text-primary mx-auto mb-1" />
-                      <p className="text-xs text-muted-foreground">Streak</p>
-                      <p className="font-bold">5 days</p>
+                {activeView === 'calendar' && (
+                  <Card className="border-0 shadow-lg">
+                    <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100">
+                      <CardTitle className="flex items-center gap-2 text-slate-900">
+                        <Calendar className="h-5 w-5 text-slate-700" />
+                        Meal Calendar for {selectedKid.name}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <PlanCalendar selectedChild={selectedKid} />
                     </CardContent>
                   </Card>
-                  
-                  <Card>
-                    <CardContent className="p-3 text-center">
-                      <Star className="h-5 w-5 text-primary mx-auto mb-1" />
-                      <p className="text-xs text-muted-foreground">Points</p>
-                      <p className="font-bold">240</p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardContent className="p-3 text-center">
-                      <Heart className="h-5 w-5 text-primary mx-auto mb-1" />
-                      <p className="text-xs text-muted-foreground">Health</p>
-                      <p className="font-bold">85%</p>
-                    </CardContent>
-                  </Card>
-                </div>
+                )}
               </>
             )}
           </div>
