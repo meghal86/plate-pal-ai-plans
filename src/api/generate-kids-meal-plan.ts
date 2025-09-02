@@ -68,7 +68,7 @@ export interface KidsPlanPreferences {
 }
 
 export async function generateKidsSchoolPlan(
-  preferences: KidsPlanPreferences,
+  preferences: KidsPlanPreferences & { ageGroupConfig?: any },
   kidName: string,
   duration: number = 7
 ): Promise<KidsSchoolPlan> {
@@ -77,7 +77,19 @@ export async function generateKidsSchoolPlan(
     throw new Error('Duration must be between 1 and 90 days');
   }
   try {
-    const prompt = `Generate a comprehensive ${duration}-day school meal plan for ${kidName}, a ${preferences.kid_age}-year-old child.
+    // Enhanced prompt with age-specific configuration
+    const ageConfigText = preferences.ageGroupConfig ? `
+AGE-OPTIMIZED CONFIGURATION:
+- Age Group: ${preferences.ageGroupConfig.ageGroup}
+- Plan Type: ${preferences.ageGroupConfig.template}
+- Description: ${preferences.ageGroupConfig.description}
+- Nutritional Focus: ${preferences.ageGroupConfig.nutritionalFocus.join(', ')}
+- Portion Sizes: ${preferences.ageGroupConfig.portionSizes}
+- Meal Complexity: ${preferences.ageGroupConfig.mealComplexity}
+- Calorie Range: ${preferences.ageGroupConfig.calorieRange} per day
+` : '';
+
+    const prompt = `Generate a comprehensive ${duration}-day AGE-OPTIMIZED school meal plan for ${kidName}, a ${preferences.kid_age}-year-old child.
 
 CHILD PROFILE:
 - Name: ${kidName}
@@ -91,6 +103,8 @@ CHILD PROFILE:
 - Budget Range: ${preferences.budget_range || 'Moderate'}
 - Special Requirements: ${preferences.special_requirements || 'None'}
 
+${ageConfigText}
+
 CRITICAL VARIETY REQUIREMENTS:
 - EVERY SINGLE DAY MUST HAVE COMPLETELY DIFFERENT MEALS
 - NO MEAL SHOULD BE REPEATED ACROSS THE ${duration} DAYS
@@ -98,16 +112,24 @@ CRITICAL VARIETY REQUIREMENTS:
 - Use different cooking methods, ingredients, and cuisines for variety
 - Ensure no two days have similar meal combinations
 
-MEAL REQUIREMENTS:
+AGE-SPECIFIC MEAL REQUIREMENTS:
 1. BREAKFAST: Quick, nutritious, energy-boosting meals for school mornings
+   - Tailor complexity to ${preferences.kid_age}-year-old developmental stage
+   - ${preferences.ageGroupConfig ? preferences.ageGroupConfig.mealComplexity : 'Age-appropriate complexity'}
+   
 2. LUNCH: Portable, appealing, balanced meals that stay fresh until lunchtime
+   - Portion sizes: ${preferences.ageGroupConfig ? preferences.ageGroupConfig.portionSizes : 'Age-appropriate portions'}
+   - Focus on: ${preferences.ageGroupConfig ? preferences.ageGroupConfig.nutritionalFocus.join(', ') : 'balanced nutrition'}
+   
 3. AFTERNOON SNACK: Healthy, satisfying snacks for after-school energy
+   - Support growth and development needs for ${preferences.kid_age}-year-olds
 
 GUIDELINES:
-- Age-appropriate portions and nutrition for ${preferences.kid_age}-year-old
+- STRICTLY follow age-appropriate portions and nutrition for ${preferences.kid_age}-year-old
+- Target calorie range: ${preferences.ageGroupConfig ? preferences.ageGroupConfig.calorieRange : '1400-1800'} per day
 - School-friendly foods (no nuts if school policy, easy to eat, minimal mess)
-- Balanced nutrition with adequate protein, healthy carbs, and essential vitamins
-- Kid-appealing presentation and flavors
+- Prioritize: ${preferences.ageGroupConfig ? preferences.ageGroupConfig.nutritionalFocus.join(', ') : 'balanced nutrition'}
+- Kid-appealing presentation matching developmental stage
 - Practical preparation and storage considerations
 - Include prep tips and storage instructions for busy parents
 

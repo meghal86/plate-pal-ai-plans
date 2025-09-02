@@ -57,6 +57,55 @@ import {
   History
 } from "lucide-react";
 
+// Age-based meal planning configuration
+const getAgeGroupConfig = (age: number) => {
+  if (age <= 5) {
+    return {
+      ageGroup: 'Toddler/Preschool',
+      template: 'toddler_friendly',
+      description: 'Simple, finger-friendly foods with mild flavors',
+      nutritionalFocus: ['Calcium for bone development', 'Iron for growth', 'Healthy fats for brain development'],
+      portionSizes: 'Small, toddler-appropriate portions',
+      mealComplexity: 'Simple preparations, easy to eat',
+      calorieRange: '1000-1200',
+      ageGroupKey: '2-5'
+    };
+  } else if (age <= 10) {
+    return {
+      ageGroup: 'Elementary School',
+      template: 'elementary_balanced',
+      description: 'Balanced nutrition with kid-friendly presentations',
+      nutritionalFocus: ['Protein for growth', 'Whole grains for energy', 'Fruits and vegetables for vitamins'],
+      portionSizes: 'Child-sized portions with room for growth',
+      mealComplexity: 'Moderate variety, appealing presentations',
+      calorieRange: '1400-1600',
+      ageGroupKey: '5-10'
+    };
+  } else if (age <= 14) {
+    return {
+      ageGroup: 'Middle School',
+      template: 'middle_school_active',
+      description: 'Higher energy needs for active growing bodies',
+      nutritionalFocus: ['Increased protein for growth spurts', 'Complex carbs for sustained energy', 'Calcium for bone development'],
+      portionSizes: 'Larger portions to support growth',
+      mealComplexity: 'More variety, introduction to diverse flavors',
+      calorieRange: '1800-2200',
+      ageGroupKey: '11-15'
+    };
+  } else {
+    return {
+      ageGroup: 'High School',
+      template: 'teen_performance',
+      description: 'Nutrient-dense meals for peak performance and development',
+      nutritionalFocus: ['High protein for muscle development', 'Iron for energy', 'Healthy fats for brain function'],
+      portionSizes: 'Adult-sized portions',
+      mealComplexity: 'Full variety, sophisticated flavors',
+      calorieRange: '2200-2600',
+      ageGroupKey: '11-15'
+    };
+  }
+};
+
 type KidsMealPlan = Database['public']['Tables']['kids_meal_plans']['Row'];
 
 interface KidsSchoolMealPlannerProps {
@@ -93,10 +142,12 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
 
   // Form state
   const [planDuration, setPlanDuration] = useState(7);
-  const [selectedAgeGroup, setSelectedAgeGroup] = useState<'5-10' | '11-15'>(kidAge <= 10 ? '5-10' : '11-15');
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('balanced');
   const [showApprovalWorkflow, setShowApprovalWorkflow] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+  
+  // Get age-based configuration automatically
+  const ageGroupConfig = getAgeGroupConfig(kidAge);
+  
   const [planPreferences, setPlanPreferences] = useState<KidsPlanPreferences>({
     kid_age: kidAge,
     allergies: [],
@@ -107,7 +158,7 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
     prep_time_limit: '15_minutes',
     budget_range: 'moderate',
     special_requirements: '',
-    age_group: kidAge <= 10 ? '5-10' : '11-15',
+    age_group: ageGroupConfig.ageGroupKey as '5-10' | '11-15',
     usda_compliant: true,
     lunchbox_friendly: true
   });
@@ -385,7 +436,15 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
     try {
       setGenerating(true);
       
-      const plan = await generateKidsSchoolPlan(planPreferences, kidName, planDuration);
+      // Use age-based configuration in preferences
+      const enhancedPreferences = {
+        ...planPreferences,
+        ageGroupConfig,
+        template: ageGroupConfig.template,
+        age_group: ageGroupConfig.ageGroupKey as '5-10' | '11-15'
+      };
+      
+      const plan = await generateKidsSchoolPlan(enhancedPreferences, kidName, planDuration);
       plan.kid_id = kidId;
       
       setCurrentPlan(plan);
@@ -394,7 +453,7 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
       const savedPlan = await KidsMealPlansService.saveMealPlan(
         kidId,
         plan,
-        planPreferences,
+        enhancedPreferences,
         user.id
       );
 
@@ -521,64 +580,7 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
     }
   };
 
-  // Age-specific meal templates
-  const getAgeSpecificTemplates = (ageGroup: '5-10' | '11-15') => {
-    const templates = {
-      '5-10': [
-        {
-          id: 'balanced',
-          name: 'Balanced Growth',
-          description: 'USDA MyPlate compliant meals for elementary school kids',
-          calories: '1400-1600',
-          focus: 'Growth & Development',
-          features: ['Fun shapes', 'Colorful foods', 'Easy to eat']
-        },
-        {
-          id: 'picky_eater',
-          name: 'Picky Eater Friendly',
-          description: 'Familiar foods with hidden nutrition',
-          calories: '1300-1500',
-          focus: 'Acceptance & Nutrition',
-          features: ['Familiar flavors', 'Hidden veggies', 'Kid favorites']
-        },
-        {
-          id: 'active_kid',
-          name: 'Active Kid',
-          description: 'Higher energy meals for active children',
-          calories: '1600-1800',
-          focus: 'Energy & Performance',
-          features: ['Extra protein', 'Quick energy', 'Recovery foods']
-        }
-      ],
-      '11-15': [
-        {
-          id: 'teen_balanced',
-          name: 'Teen Balanced',
-          description: 'USDA compliant meals for growing teenagers',
-          calories: '1800-2200',
-          focus: 'Growth & Independence',
-          features: ['Larger portions', 'Teen favorites', 'Social foods']
-        },
-        {
-          id: 'athlete',
-          name: 'Young Athlete',
-          description: 'Performance-focused nutrition for teen athletes',
-          calories: '2200-2600',
-          focus: 'Athletic Performance',
-          features: ['High protein', 'Pre/post workout', 'Hydration focus']
-        },
-        {
-          id: 'brain_food',
-          name: 'Brain Boost',
-          description: 'Cognitive support for academic performance',
-          calories: '1800-2000',
-          focus: 'Cognitive Function',
-          features: ['Omega-3 rich', 'Complex carbs', 'Focus foods']
-        }
-      ]
-    };
-    return templates[ageGroup];
-  };
+
 
   // USDA MyPlate compliance checker
   const checkUSDACompliance = (meal: any) => {
@@ -721,81 +723,50 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Age Group Selection */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold text-blue-800">Age Group & Template</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        variant={selectedAgeGroup === '5-10' ? "default" : "outline"}
-                        onClick={() => {
-                          setSelectedAgeGroup('5-10');
-                          setPlanPreferences(prev => ({ ...prev, age_group: '5-10' }));
-                        }}
-                        className={`h-16 flex flex-col ${
-                          selectedAgeGroup === '5-10' 
-                            ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white" 
-                            : "hover:bg-green-50 border-green-300"
-                        }`}
-                      >
-                        <span className="font-bold">5-10 Years</span>
-                        <span className="text-xs">Elementary School</span>
-                      </Button>
-                      <Button
-                        variant={selectedAgeGroup === '11-15' ? "default" : "outline"}
-                        onClick={() => {
-                          setSelectedAgeGroup('11-15');
-                          setPlanPreferences(prev => ({ ...prev, age_group: '11-15' }));
-                        }}
-                        className={`h-16 flex flex-col ${
-                          selectedAgeGroup === '11-15' 
-                            ? "bg-gradient-to-br from-purple-500 to-pink-500 text-white" 
-                            : "hover:bg-purple-50 border-purple-300"
-                        }`}
-                      >
-                        <span className="font-bold">11-15 Years</span>
-                        <span className="text-xs">Middle/High School</span>
-                      </Button>
+                  {/* Auto-determined Age Group Configuration */}
+                  <div className="space-y-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-semibold text-blue-900">Age-Optimized Plan Configuration</h3>
+                      <Badge className="bg-green-100 text-green-800 border-green-200">
+                        Auto-Selected for Age {kidAge}
+                      </Badge>
                     </div>
-                  </div>
-
-                  {/* Meal Templates */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold text-blue-800">Meal Plan Template</Label>
-                    <div className="grid gap-3">
-                      {getAgeSpecificTemplates(selectedAgeGroup).map((template) => (
-                        <Card 
-                          key={template.id}
-                          className={`cursor-pointer transition-all ${
-                            selectedTemplate === template.id 
-                              ? 'ring-2 ring-blue-500 bg-blue-50' 
-                              : 'hover:bg-gray-50'
-                          }`}
-                          onClick={() => setSelectedTemplate(template.id)}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h4 className="font-semibold text-sm text-gray-900">{template.name}</h4>
-                                <p className="text-xs text-gray-600 mt-1">{template.description}</p>
-                                <div className="flex items-center gap-4 mt-2 text-xs">
-                                  <span className="text-blue-600 font-medium">{template.calories} cal/day</span>
-                                  <span className="text-green-600">{template.focus}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {template.features.map((feature, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs">
-                                      {feature}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                              {selectedTemplate === template.id && (
-                                <CheckCircle className="h-5 w-5 text-blue-500 mt-1" />
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm font-medium text-blue-800">Age Group</Label>
+                        <p className="text-blue-700 font-medium">{ageGroupConfig.ageGroup}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-blue-800">Plan Type</Label>
+                        <p className="text-blue-700 font-medium capitalize">{ageGroupConfig.template.replace('_', ' ')}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-blue-800">Calorie Range</Label>
+                        <p className="text-blue-700 font-medium">{ageGroupConfig.calorieRange} per day</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-blue-800">Portion Sizes</Label>
+                        <p className="text-blue-700 text-sm">{ageGroupConfig.portionSizes}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-blue-800">Description</Label>
+                      <p className="text-blue-700 text-sm">{ageGroupConfig.description}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-blue-800">Nutritional Focus</Label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {ageGroupConfig.nutritionalFocus.map((focus: string, index: number) => (
+                          <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
+                            {focus}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-blue-800">Meal Complexity</Label>
+                      <p className="text-blue-700 text-sm">{ageGroupConfig.mealComplexity}</p>
                     </div>
                   </div>
 
@@ -874,12 +845,12 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                       {generating ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Generating...
+                          Generating Age-Optimized Plan...
                         </>
                       ) : (
                         <>
                           <Sparkles className="h-4 w-4 mr-2" />
-                          Generate Plan
+                          Generate Age-Optimized Plan
                         </>
                       )}
                     </Button>
@@ -932,7 +903,7 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                           </Badge>
                           <Badge className="bg-purple-100 text-purple-800 border-purple-300">
                             <Target className="h-3 w-3 mr-1" />
-                            Age {selectedAgeGroup}
+                            Age {kidAge}
                           </Badge>
                         </div>
                         
@@ -1181,12 +1152,12 @@ const KidsSchoolMealPlanner: React.FC<KidsSchoolMealPlannerProps> = ({
                     USDA MyPlate Guidelines
                   </CardTitle>
                   <CardDescription className="text-green-700">
-                    Daily nutrition requirements for {selectedAgeGroup} years
+                    Daily nutrition requirements for {ageGroupConfig.ageGroup}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {selectedAgeGroup === '5-10' ? (
+                    {ageGroupConfig.ageGroupKey === '5-10' ? (
                       <>
                         <div className="flex justify-between text-sm">
                           <span className="text-green-700">🍎 Fruits:</span>
